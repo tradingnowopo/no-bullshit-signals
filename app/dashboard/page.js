@@ -188,6 +188,13 @@ export default function DashboardPage() {
         <h1 style={styles.title}>YOUR DASHBOARD</h1>
 
         <p style={styles.email}>{user?.email}</p>
+      {trialWarning && (
+      <div style={styles.trialWarning}>
+      {daysLeft === 1
+      ? "⚠️ LAST DAY — Your free trial ends tomorrow."
+      : `⚠️ Your free trial ends in ${daysLeft} days. Choose a plan to keep your signals.`}
+            </div>
+    )}
 
         <div style={styles.accountGrid}>
           <div style={styles.card}>
@@ -420,7 +427,17 @@ const styles = {
     color: "#f4f7f5",
     fontFamily: "Arial, Helvetica, sans-serif",
   },
-
+  trialWarning: {
+    marginBottom: 30,
+    padding: "14px 16px",
+    border: "1px solid #6b5622",
+    background: "#171308",
+    color: "#f4c95d",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: 1.5,
+},
   nav: {
     height: 75,
     borderBottom: "1px solid #1c2622",

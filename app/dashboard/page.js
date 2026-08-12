@@ -11,6 +11,7 @@ const supabase = createClient(
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [signal, setSignal] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,17 +34,33 @@ export default function DashboardPage() {
       .eq("id", user.id)
       .single();
 
-  if (error) {
-  console.error("PROFILE ERROR:", error);
-  alert(
-    "PROFILE ERROR: " +
-      error.message +
-      " | CODE: " +
-      error.code);
-  }
+    if (error) {
+      console.error("PROFILE ERROR:", error);
+      alert(
+        "PROFILE ERROR: " +
+          error.message +
+          " | CODE: " +
+          error.code
+      );
+    }
+
+    const { data: signalData, error: signalError } = await supabase
+      .from("signals")
+      .select(
+        "instrument, direction, confidence, score, entry_price, timeframe, created_at"
+      )
+      .eq("status", "accepted")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (signalError) {
+      console.error("SIGNAL ERROR:", signalError);
+    }
 
     setUser(user);
     setProfile(profileData);
+    setSignal(signalData);
     setLoading(false);
   }
 
@@ -124,18 +141,54 @@ export default function DashboardPage() {
         <div style={styles.signalCard}>
           <div>
             <div style={styles.live}>● LATEST SIGNAL</div>
-            <h2 style={styles.wti}>WTI / USOIL</h2>
-            <p style={styles.muted}>Temporary test signal</p>
+
+            <h2 style={styles.wti}>
+              {signal?.instrument || "USOIL"}
+            </h2>
+
+            <p style={styles.muted}>
+              {signal
+                ? `${signal.timeframe || "-"} · Entry ${
+                    signal.entry_price ?? "-"
+                  }`
+                : "No signal available"}
+            </p>
           </div>
 
           <div>
             <div style={styles.label}>DIRECTION</div>
-            <div style={styles.greenBig}>LONG ↑</div>
+
+            <div
+              style={
+                signal?.direction === "SHORT"
+                  ? { ...styles.greenBig, color: "#ff5c72" }
+                  : styles.greenBig
+              }
+            >
+              {signal?.direction
+                ? `${signal.direction} ${
+                    signal.direction === "SHORT" ? "↓" : "↑"
+                  }`
+                : "-"}
+            </div>
           </div>
 
           <div>
             <div style={styles.label}>CONFIDENCE</div>
-            <div style={styles.big}>72%</div>
+
+            <div style={styles.big}>
+              {signal?.confidence != null
+                ? `${signal.confidence}%`
+                : "-"}
+            </div>
+          </div>
+
+          <div>
+            <div style={styles.label}>SCORE</div>
+
+            <div style={styles.big}>
+              {signal?.score ?? "-"}
+            </div>
           </div>
         </div>
       </section>

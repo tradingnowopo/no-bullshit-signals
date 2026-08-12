@@ -18,6 +18,23 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboard();
   }, []);
+  useEffect(() => {
+  const refreshSystemStatus = async () => {
+    const { data, error } = await supabase
+      .from("system_status")
+      .select("last_tracker_at, symbol, timeframe")
+      .eq("id", 1)
+      .single();
+
+    if (!error && data) {
+      setSystemStatus(data);
+    }
+  };
+
+  const interval = setInterval(refreshSystemStatus, 30000);
+
+  return () => clearInterval(interval);
+}, []);
 
   async function loadDashboard() {
     const {

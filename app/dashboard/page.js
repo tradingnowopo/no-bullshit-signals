@@ -42,11 +42,11 @@ export default function DashboardPage() {
     const { data: signalsData, error: signalsError } = await supabase
       .from("signals")
       .select(
-        "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status"
+        "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status, stop_loss, tp1, tp2, result, exit_price, pnl_percent, closed_at"
       )
       .eq("status", "accepted")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (signalsError) {
       console.error("SIGNALS ERROR:", signalsError);
@@ -88,7 +88,29 @@ export default function DashboardPage() {
     });
   }
 
+  function resultStyle(result) {
+    if (result === "WIN") return styles.win;
+    if (result === "LOSS") return styles.loss;
+    if (result === "BE") return styles.be;
+
+    return styles.open;
+  }
+
   const daysLeft = getTrialDaysLeft();
+
+  const wins = signals.filter((signal) => signal.result === "WIN").length;
+  const losses = signals.filter((signal) => signal.result === "LOSS").length;
+  const openSignals = signals.filter(
+    (signal) => !signal.result || signal.result === "OPEN"
+  ).length;
+  const breakEven = signals.filter((signal) => signal.result === "BE").length;
+
+  const completedSignals = wins + losses;
+
+  const winRate =
+    completedSignals > 0
+      ? Math.round((wins / completedSignals) * 100)
+      : 0;
 
   if (loading) {
     return (
@@ -117,7 +139,7 @@ export default function DashboardPage() {
 
         <p style={styles.email}>{user?.email}</p>
 
-        <div style={styles.grid}>
+        <div style={styles.accountGrid}>
           <div style={styles.card}>
             <div style={styles.label}>ACCESS STATUS</div>
 
@@ -148,61 +170,115 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        <div style={styles.sectionLabel}>PERFORMANCE</div>
+
+        <div style={styles.performanceGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.label}>WIN RATE</div>
+            <div style={styles.greenBig}>{winRate}%</div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.label}>WINS</div>
+            <div style={styles.greenBig}>{wins}</div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.label}>LOSSES</div>
+            <div style={styles.redBig}>{losses}</div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.label}>OPEN</div>
+            <div style={styles.yellowBig}>{openSignals}</div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.label}>BREAK EVEN</div>
+            <div style={styles.big}>{breakEven}</div>
+          </div>
+        </div>
+
         <div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
 
-        <div style={styles.signalCard}>
+        <div style={styles.latestCard}>
           {latestSignal ? (
             <>
-              <div>
-                <div style={styles.live}>● LIVE / LATEST</div>
+              <div style={styles.latestTop}>
+                <div>
+                  <div style={styles.live}>● LATEST SIGNAL</div>
 
-                <h2 style={styles.wti}>
-                  {latestSignal.instrument || "USOIL"}
-                </h2>
+                  <h2 style={styles.wti}>
+                    {latestSignal.instrument || "USOIL"}
+                  </h2>
 
-                <p style={styles.muted}>
-                  {latestSignal.timeframe || "5m"} ·{" "}
-                  {formatDate(latestSignal.created_at)}
-                </p>
-              </div>
+                  <p style={styles.muted}>
+                    {latestSignal.timeframe || "5m"} ·{" "}
+                    {formatDate(latestSignal.created_at)}
+                  </p>
+                </div>
 
-              <div>
-                <div style={styles.label}>DIRECTION</div>
-
-                <div
-                  style={
-                    latestSignal.direction === "SHORT"
-                      ? styles.redBig
-                      : styles.greenBig
-                  }
-                >
-                  {latestSignal.direction || "-"}{" "}
-                  {latestSignal.direction === "LONG"
-                    ? "↑"
-                    : latestSignal.direction === "SHORT"
-                    ? "↓"
-                    : ""}
+                <div style={resultStyle(latestSignal.result)}>
+                  {latestSignal.result || "OPEN"}
                 </div>
               </div>
 
-              <div>
-                <div style={styles.label}>ENTRY</div>
-                <div style={styles.big}>
-                  {latestSignal.entry_price ?? "-"}
-                </div>
-              </div>
+              <div style={styles.signalStats}>
+                <div>
+                  <div style={styles.label}>DIRECTION</div>
 
-              <div>
-                <div style={styles.label}>CONFIDENCE</div>
-                <div style={styles.big}>
-                  {latestSignal.confidence ?? "-"}%
+                  <div
+                    style={
+                      latestSignal.direction === "SHORT"
+                        ? styles.redBig
+                        : styles.greenBig
+                    }
+                  >
+                    {latestSignal.direction || "-"}{" "}
+                    {latestSignal.direction === "LONG"
+                      ? "↑"
+                      : latestSignal.direction === "SHORT"
+                      ? "↓"
+                      : ""}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <div style={styles.label}>SCORE</div>
-                <div style={styles.big}>
-                  {latestSignal.score ?? "-"}/100
+                <div>
+                  <div style={styles.label}>ENTRY</div>
+                  <div style={styles.big}>
+                    {latestSignal.entry_price ?? "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={styles.label}>STOP LOSS</div>
+                  <div style={styles.big}>
+                    {latestSignal.stop_loss ?? "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={styles.label}>TP1</div>
+                  <div style={styles.big}>{latestSignal.tp1 ?? "-"}</div>
+                </div>
+
+                <div>
+                  <div style={styles.label}>TP2</div>
+                  <div style={styles.big}>{latestSignal.tp2 ?? "-"}</div>
+                </div>
+
+                <div>
+                  <div style={styles.label}>CONFIDENCE</div>
+                  <div style={styles.big}>
+                    {latestSignal.confidence ?? "-"}%
+                  </div>
+                </div>
+
+                <div>
+                  <div style={styles.label}>SCORE</div>
+                  <div style={styles.big}>
+                    {latestSignal.score ?? "-"}/100
+                  </div>
                 </div>
               </div>
             </>
@@ -235,11 +311,13 @@ export default function DashboardPage() {
                 <div style={styles.tableHeader}>
                   <span>DATE</span>
                   <span>MARKET</span>
-                  <span>TF</span>
-                  <span>DIRECTION</span>
+                  <span>DIR.</span>
                   <span>ENTRY</span>
+                  <span>SL</span>
+                  <span>TP1</span>
+                  <span>TP2</span>
                   <span>CONF.</span>
-                  <span>SCORE</span>
+                  <span>RESULT</span>
                 </div>
 
                 {signals.map((signal) => (
@@ -250,8 +328,6 @@ export default function DashboardPage() {
 
                     <strong>{signal.instrument || "USOIL"}</strong>
 
-                    <span>{signal.timeframe || "-"}</span>
-
                     <strong
                       style={
                         signal.direction === "SHORT"
@@ -259,15 +335,19 @@ export default function DashboardPage() {
                           : styles.longText
                       }
                     >
-                      {signal.direction}{" "}
+                      {signal.direction || "-"}{" "}
                       {signal.direction === "SHORT" ? "↓" : "↑"}
                     </strong>
 
                     <span>{signal.entry_price ?? "-"}</span>
-
+                    <span>{signal.stop_loss ?? "-"}</span>
+                    <span>{signal.tp1 ?? "-"}</span>
+                    <span>{signal.tp2 ?? "-"}</span>
                     <span>{signal.confidence ?? "-"}%</span>
 
-                    <strong>{signal.score ?? "-"}/100</strong>
+                    <span style={resultStyle(signal.result)}>
+                      {signal.result || "OPEN"}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -319,7 +399,7 @@ const styles = {
   },
 
   wrapper: {
-    maxWidth: 1100,
+    maxWidth: 1200,
     margin: "0 auto",
     padding: "70px 25px",
   },
@@ -340,17 +420,31 @@ const styles = {
     marginBottom: 40,
   },
 
-  grid: {
+  accountGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
     gap: 15,
-    marginBottom: 45,
+    marginBottom: 50,
+  },
+
+  performanceGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+    gap: 12,
+    marginBottom: 55,
   },
 
   card: {
     border: "1px solid #26342e",
     background: "#09100d",
     padding: 25,
+    borderRadius: 9,
+  },
+
+  statCard: {
+    border: "1px solid #26342e",
+    background: "#09100d",
+    padding: 20,
     borderRadius: 9,
   },
 
@@ -380,6 +474,12 @@ const styles = {
     fontWeight: 900,
   },
 
+  yellowBig: {
+    color: "#f4c95d",
+    fontSize: 24,
+    fontWeight: 900,
+  },
+
   big: {
     fontSize: 24,
     fontWeight: 900,
@@ -390,16 +490,28 @@ const styles = {
     lineHeight: 1.5,
   },
 
-  signalCard: {
+  latestCard: {
     border: "1px solid #26342e",
     background: "#09100d",
     padding: 30,
     borderRadius: 10,
+  },
+
+  latestTop: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: 30,
+    alignItems: "flex-start",
+    gap: 20,
     flexWrap: "wrap",
+  },
+
+  signalStats: {
+    marginTop: 30,
+    paddingTop: 25,
+    borderTop: "1px solid #1c2622",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
+    gap: 25,
   },
 
   live: {
@@ -412,6 +524,46 @@ const styles = {
   wti: {
     fontSize: 28,
     marginBottom: 5,
+  },
+
+  win: {
+    display: "inline-block",
+    color: "#37f28b",
+    border: "1px solid #23563b",
+    padding: "7px 10px",
+    borderRadius: 5,
+    fontSize: 11,
+    fontWeight: 900,
+  },
+
+  loss: {
+    display: "inline-block",
+    color: "#ff4d5a",
+    border: "1px solid #5e2930",
+    padding: "7px 10px",
+    borderRadius: 5,
+    fontSize: 11,
+    fontWeight: 900,
+  },
+
+  open: {
+    display: "inline-block",
+    color: "#f4c95d",
+    border: "1px solid #554a29",
+    padding: "7px 10px",
+    borderRadius: 5,
+    fontSize: 11,
+    fontWeight: 900,
+  },
+
+  be: {
+    display: "inline-block",
+    color: "#aeb8b3",
+    border: "1px solid #35413c",
+    padding: "7px 10px",
+    borderRadius: 5,
+    fontSize: 11,
+    fontWeight: 900,
   },
 
   historySection: {
@@ -439,7 +591,6 @@ const styles = {
     borderRadius: 5,
     fontSize: 11,
     fontWeight: 900,
-    letterSpacing: 1,
   },
 
   tableWrapper: {
@@ -450,25 +601,27 @@ const styles = {
   },
 
   table: {
-    minWidth: 850,
+    minWidth: 1050,
   },
 
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "1.5fr 1fr .6fr 1fr 1fr .8fr .8fr",
-    gap: 15,
+    gridTemplateColumns:
+      "1.5fr .8fr .8fr .8fr .8fr .8fr .8fr .8fr .8fr",
+    gap: 12,
     padding: "15px 20px",
     color: "#65726b",
     fontSize: 10,
     fontWeight: 900,
-    letterSpacing: 1.3,
+    letterSpacing: 1.1,
     borderBottom: "1px solid #26342e",
   },
 
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "1.5fr 1fr .6fr 1fr 1fr .8fr .8fr",
-    gap: 15,
+    gridTemplateColumns:
+      "1.5fr .8fr .8fr .8fr .8fr .8fr .8fr .8fr .8fr",
+    gap: 12,
     padding: "18px 20px",
     alignItems: "center",
     borderBottom: "1px solid #18211d",

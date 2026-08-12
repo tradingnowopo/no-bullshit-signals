@@ -42,7 +42,7 @@ export default function DashboardPage() {
     const { data: signalsData, error: signalsError } = await supabase
       .from("signals")
       .select(
-        "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status, stop_loss, tp1, tp2, result, exit_price, pnl_percent, closed_at"
+        "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status, stop_loss, tp1, tp2, result, exit_price, pnl_percent, closed_at, tp2_hit, tp2_hit_at, max_favorable_price"
       )
       .eq("status", "accepted")
       .order("created_at", { ascending: false })
@@ -95,6 +95,46 @@ export default function DashboardPage() {
 
     return styles.open;
   }
+  function getSignalResult(signal) {
+  if (!signal) return "OPEN";
+
+  if (signal.result === "LOSS") return "❌ SL HIT";
+
+  if (
+    signal.result === "WIN" &&
+    signal.tp2_hit &&
+    signal.max_favorable_price != null &&
+    signal.entry_price != null &&
+    signal.tp2 != null
+  ) {
+    const distanceToTp2 = Math.abs(signal.tp2 - signal.entry_price);
+    const runnerThreshold = distanceToTp2 * 0.2;
+
+    if (
+      signal.direction === "LONG" &&
+      signal.max_favorable_price >= signal.tp2 + runnerThreshold
+    ) {
+      return "🚀 RUNNER";
+    }
+
+    if (
+      signal.direction === "SHORT" &&
+      signal.max_favorable_price <= signal.tp2 - runnerThreshold
+    ) {
+      return "🚀 RUNNER";
+    }
+
+    return "✅ TP2 HIT";
+  }
+
+  if (signal.result === "WIN") return "✅ TP1 HIT";
+
+  if (signal.result === "BE") return "↔ BREAK EVEN";
+
+  if (signal.result === "AMBIGUOUS") return "⚠️ CHECK";
+
+  return "● OPEN";
+}
 
   const daysLeft = getTrialDaysLeft();
 
@@ -219,7 +259,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div style={resultStyle(latestSignal.result)}>
-                  {latestSignal.result || "OPEN"}
+                  {getSignalResult(latestSignal)}
                 </div>
               </div>
 
@@ -346,7 +386,7 @@ export default function DashboardPage() {
                     <span>{signal.confidence ?? "-"}%</span>
 
                     <span style={resultStyle(signal.result)}>
-                      {signal.result || "OPEN"}
+                      {getSignalResult(signal)}
                     </span>
                   </div>
                 ))}

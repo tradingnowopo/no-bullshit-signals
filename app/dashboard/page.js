@@ -158,17 +158,25 @@ export default function DashboardPage() {
   const completedSignals = wins + losses;
 
   const winRate =
-    completedSignals > 0
-      ? Math.round((wins / completedSignals) * 100)
-      : 0;
+  completedSignals > 0
+    ? Math.round((wins / completedSignals) * 100)
+    : 0;
+
+  const hasPaidAccess =
+  profile?.subscription_status === "active" ||
+  ["PRO", "VIP", "ORACLE"].includes(
+    String(profile?.plan || "").toUpperCase()
+  );
+
+  const accessBlocked = trialExpired && !hasPaidAccess;
 
   if (loading) {
-    return (
-      <main style={styles.main}>
-        <div style={styles.loading}>LOADING MEMBER AREA...</div>
-      </main>
-    );
-  }
+  return (
+    <main style={styles.main}>
+      <div style={styles.loading}>LOADING MEMBER AREA...</div>
+    </main>
+  );
+}
 
   return (
     <main style={styles.main}>
@@ -226,7 +234,43 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+{accessBlocked ? (
+  <div style={styles.paywallCard}>
+    <div style={styles.paywallBadge}>TRIAL ENDED</div>
 
+    <h2 style={styles.paywallTitle}>
+      YOUR FREE ACCESS HAS ENDED
+    </h2>
+
+    <p style={styles.paywallText}>
+      Choose a plan to continue receiving live WTI signals,
+      performance tracking and signal history.
+    </p>
+
+    <div style={styles.planGrid}>
+      <div style={styles.planCard}>
+        <div style={styles.planName}>PRO</div>
+        <div style={styles.planDesc}>Core signal access</div>
+        <button style={styles.planButton}>CHOOSE PRO</button>
+      </div>
+
+      <div style={styles.planCard}>
+        <div style={styles.planName}>VIP</div>
+        <div style={styles.planDesc}>
+          Extended access and priority features
+        </div>
+        <button style={styles.planButton}>CHOOSE VIP</button>
+      </div>
+
+      <div style={styles.planCard}>
+        <div style={styles.planName}>ORACLE</div>
+        <div style={styles.planDesc}>Full premium access</div>
+        <button style={styles.planButton}>CHOOSE ORACLE</button>
+      </div>
+    </div>
+  </div>
+) : (
+  <>
         <div style={styles.sectionLabel}>PERFORMANCE</div>
 
         <div style={styles.performanceGrid}>
@@ -414,12 +458,15 @@ export default function DashboardPage() {
               No accepted signals in history yet.
             </div>
           )}
-        </section>
+                </section>
+
+        </>
+      )}
+
       </section>
     </main>
   );
 }
-
 const styles = {
   main: {
     minHeight: "100vh",
@@ -493,6 +540,77 @@ const styles = {
     gap: 15,
     marginBottom: 50,
   },
+paywallCard: {
+  marginTop: 20,
+  marginBottom: 50,
+  border: "1px solid #26342e",
+  background: "#09100d",
+  padding: 30,
+  borderRadius: 10,
+},
+
+paywallBadge: {
+  display: "inline-block",
+  color: "#ff4d5a",
+  border: "1px solid #5e2930",
+  padding: "7px 10px",
+  borderRadius: 5,
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 1.5,
+  marginBottom: 18,
+},
+
+paywallTitle: {
+  fontSize: 30,
+  marginTop: 0,
+  marginBottom: 12,
+},
+
+paywallText: {
+  color: "#89958f",
+  lineHeight: 1.6,
+  maxWidth: 700,
+  marginBottom: 25,
+},
+
+planGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+  gap: 15,
+},
+
+planCard: {
+  border: "1px solid #26342e",
+  background: "#050807",
+  padding: 22,
+  borderRadius: 8,
+},
+
+planName: {
+  color: "#37f28b",
+  fontSize: 22,
+  fontWeight: 900,
+  marginBottom: 8,
+},
+
+planDesc: {
+  color: "#78867f",
+  lineHeight: 1.5,
+  minHeight: 45,
+  marginBottom: 20,
+},
+
+planButton: {
+  width: "100%",
+  background: "#37f28b",
+  color: "#041008",
+  border: 0,
+  borderRadius: 5,
+  padding: "13px 15px",
+  fontWeight: 900,
+  cursor: "pointer",
+},
 
   performanceGrid: {
     display: "grid",

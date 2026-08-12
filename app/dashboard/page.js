@@ -169,7 +169,14 @@ export default function DashboardPage() {
   );
 
   const accessBlocked = trialExpired && !hasPaidAccess;
+  const lastSystemUpdate =
+  signals && signals.length > 0
+    ? signals
+        .map((signal) => new Date(signal.created_at))
+        .sort((a, b) => b - a)[0]
+    : null;
 
+  const systemOnline = true;
   if (loading) {
   return (
     <main style={styles.main}>
@@ -271,6 +278,22 @@ export default function DashboardPage() {
   </div>
 ) : (
   <>
+  <div style={styles.systemBar}>
+  <div>
+    <span style={styles.onlineDot}>●</span>{" "}
+    <strong>SYSTEM ONLINE</strong>
+  </div>
+
+  <div style={styles.systemInfo}>
+    <span>WTI · 5M</span>
+    <span>
+      LAST SIGNAL:{" "}
+      {lastSystemUpdate
+        ? lastSystemUpdate.toLocaleString("en-GB")
+        : "WAITING FOR SIGNAL"}
+    </span>
+  </div>
+</div>
         <div style={styles.sectionLabel}>PERFORMANCE</div>
 
         <div style={styles.performanceGrid}>
@@ -838,4 +861,29 @@ planButton: {
     color: "#37f28b",
     fontWeight: 900,
   },
+  systemBar: {
+  marginBottom: 30,
+  padding: "14px 18px",
+  border: "1px solid #23563b",
+  background: "#07110c",
+  borderRadius: 6,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 20,
+  fontSize: 12,
+  letterSpacing: 1,
+},
+
+onlineDot: {
+  color: "#37f28b",
+  marginRight: 5,
+},
+
+systemInfo: {
+  display: "flex",
+  gap: 25,
+  color: "#89958f",
+  fontSize: 11,
+},
 };

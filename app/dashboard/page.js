@@ -10,13 +10,14 @@ const supabase = createClient(
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkUser();
+    loadDashboard();
   }, []);
 
-  async function checkUser() {
+  async function loadDashboard() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -26,7 +27,18 @@ export default function DashboardPage() {
       return;
     }
 
+    const { data: profileData, error } = await supabase
+      .from("profiles")
+      .select("plan, subscription_status, trial_started_at, trial_ends_at")
+      .eq("id", user.id)
+      .single();
+
+    if (error) {
+      console.error(error);
+    }
+
     setUser(user);
+    setProfile(profileData);
     setLoading(false);
   }
 
@@ -34,6 +46,18 @@ export default function DashboardPage() {
     await supabase.auth.signOut();
     window.location.href = "/";
   }
+
+  function getTrialDaysLeft() {
+    if (!profile?.trial_ends_at) return 0;
+
+    const now = new Date();
+    const end = new Date(profile.trial_ends_at);
+    const diff = end.getTime() - now.getTime();
+
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }
+
+  const daysLeft = getTrialDaysLeft();
 
   if (loading) {
     return (
@@ -65,17 +89,29 @@ export default function DashboardPage() {
         <div style={styles.grid}>
           <div style={styles.card}>
             <div style={styles.label}>ACCESS STATUS</div>
-            <div style={styles.greenBig}>14-DAY FREE TRIAL</div>
+
+            <div style={styles.greenBig}>
+              {profile?.subscription_status === "trial"
+                ? "FREE TRIAL"
+                : profile?.subscription_status?.toUpperCase() || "UNKNOWN"}
+            </div>
+
             <p style={styles.muted}>
-              Trial tracking will be connected in the next step.
+              {profile?.subscription_status === "trial"
+                ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} remaining`
+                : "Subscription access"}
             </p>
           </div>
 
           <div style={styles.card}>
             <div style={styles.label}>CURRENT PLAN</div>
-            <div style={styles.big}>FREE</div>
+            <div style={styles.big}>{profile?.plan || "FREE"}</div>
+
             <p style={styles.muted}>
-              Upgrade options will be connected to Stripe later.
+              Trial ends:{" "}
+              {profile?.trial_ends_at
+                ? new Date(profile.trial_ends_at).toLocaleDateString()
+                : "Not available"}
             </p>
           </div>
         </div>

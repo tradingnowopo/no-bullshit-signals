@@ -33,9 +33,14 @@ export default function DashboardPage() {
       .eq("id", user.id)
       .single();
 
-    if (error) {
-      console.error(error);
-    }
+  if (error) {
+  console.error("PROFILE ERROR:", error);
+  alert(
+    "PROFILE ERROR: " +
+      error.message +
+      " | CODE: " +
+      error.code);
+  }
 
     setUser(user);
     setProfile(profileData);

@@ -137,6 +137,16 @@ export default function DashboardPage() {
 }
 
   const daysLeft = getTrialDaysLeft();
+  const trialExpired =
+  profile?.subscription_status === "trial" &&
+  daysLeft !== null &&
+  daysLeft <= 0;
+
+  const trialWarning =
+  profile?.subscription_status === "trial" &&
+  daysLeft !== null &&
+  daysLeft > 0 &&
+  daysLeft <= 7;
 
   const wins = signals.filter((signal) => signal.result === "WIN").length;
   const losses = signals.filter((signal) => signal.result === "LOSS").length;

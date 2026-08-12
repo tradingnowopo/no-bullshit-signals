@@ -14,7 +14,7 @@ export default function DashboardPage() {
   const [latestSignal, setLatestSignal] = useState(null);
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [systemStatus, setSystemStatus] = useState(null);
   useEffect(() => {
     loadDashboard();
   }, []);
@@ -51,13 +51,22 @@ export default function DashboardPage() {
     if (signalsError) {
       console.error("SIGNALS ERROR:", signalsError);
     }
+  const { data: systemStatusData, error: systemStatusError } = await supabase
+      .from("system_status")
+      .select("last_tracker_at, symbol, timeframe")
+      .eq("id", 1)
+      .single();
 
+    if (systemStatusError) {
+      console.error("SYSTEM STATUS ERROR:", systemStatusError);
+}
     const cleanSignals = signalsData || [];
 
     setUser(user);
     setProfile(profileData);
     setSignals(cleanSignals);
     setLatestSignal(cleanSignals.length > 0 ? cleanSignals[0] : null);
+    setSystemStatus(systemStatusData);
     setLoading(false);
   }
 
@@ -169,14 +178,17 @@ export default function DashboardPage() {
   );
 
   const accessBlocked = trialExpired && !hasPaidAccess;
-  const lastSystemUpdate =
-  signals && signals.length > 0
-    ? signals
-        .map((signal) => new Date(signal.created_at))
-        .sort((a, b) => b - a)[0]
-    : null;
+  const lastTrackerAt = systemStatus?.last_tracker_at
+  ? new Date(systemStatus.last_tracker_at)
+  : null;
 
-  const systemOnline = true;
+  const trackerAgeMs = lastTrackerAt
+  ? Date.now() - lastTrackerAt.getTime()
+  : Infinity;
+
+  const trackerAgeMinutes = Math.floor(trackerAgeMs / 60000);
+
+  const systemOnline = trackerAgeMinutes <= 10;
   if (loading) {
   return (
     <main style={styles.main}>
@@ -280,17 +292,38 @@ export default function DashboardPage() {
   <>
   <div style={styles.systemBar}>
   <div>
-    <span style={styles.onlineDot}>●</span>{" "}
-    <strong>SYSTEM ONLINE</strong>
+    <span
+      style={{
+        ...styles.onlineDot,
+        color: systemOnline ? "#37f28b" : "#ff4d5a",
+      }}
+    >
+      ●
+    </span>{" "}
+    <strong>
+      {systemOnline ? "SYSTEM ONLINE" : "DATA OFFLINE"}
+    </strong>
   </div>
 
   <div style={styles.systemInfo}>
-    <span>WTI · 5M</span>
     <span>
-      LAST SIGNAL:{" "}
-      {lastSystemUpdate
-        ? lastSystemUpdate.toLocaleString("en-GB")
-        : "WAITING FOR SIGNAL"}
+      {systemStatus?.symbol || "WTI"} ·{" "}
+      {systemStatus?.timeframe || "5m"}
+    </span>
+
+    <span>
+      LAST DATA:{" "}
+      {lastTrackerAt
+        ? lastTrackerAt.toLocaleString("en-GB")
+        : "NO DATA"}
+    </span>
+
+    <span>
+      {lastTrackerAt
+        ? trackerAgeMinutes < 1
+          ? "UPDATED: JUST NOW"
+          : `UPDATED: ${trackerAgeMinutes} MIN AGO`
+        : ""}
     </span>
   </div>
 </div>

@@ -11,7 +11,7 @@ const supabase = createClient(
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [signal, setSignal] = useState(null);
+  const [latestSignal, setLatestSignal] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,31 +28,25 @@ export default function DashboardPage() {
       return;
     }
 
-    const { data: profileData, error } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("plan, subscription_status, trial_started_at, trial_ends_at")
       .eq("id", user.id)
       .single();
 
-    if (error) {
-      console.error("PROFILE ERROR:", error);
-      alert(
-        "PROFILE ERROR: " +
-          error.message +
-          " | CODE: " +
-          error.code
-      );
+    if (profileError) {
+      console.error("PROFILE ERROR:", profileError);
     }
 
     const { data: signalData, error: signalError } = await supabase
       .from("signals")
       .select(
-        "instrument, direction, confidence, score, entry_price, timeframe, created_at"
+        "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status"
       )
       .eq("status", "accepted")
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (signalError) {
       console.error("SIGNAL ERROR:", signalError);
@@ -60,7 +54,7 @@ export default function DashboardPage() {
 
     setUser(user);
     setProfile(profileData);
-    setSignal(signalData);
+    setLatestSignal(signalData);
     setLoading(false);
   }
 
@@ -127,6 +121,7 @@ export default function DashboardPage() {
 
           <div style={styles.card}>
             <div style={styles.label}>CURRENT PLAN</div>
+
             <div style={styles.big}>{profile?.plan || "FREE"}</div>
 
             <p style={styles.muted}>
@@ -139,57 +134,74 @@ export default function DashboardPage() {
         </div>
 
         <div style={styles.signalCard}>
-          <div>
-            <div style={styles.live}>● LATEST SIGNAL</div>
+          {latestSignal ? (
+            <>
+              <div>
+                <div style={styles.live}>● LATEST SIGNAL</div>
 
-            <h2 style={styles.wti}>
-              {signal?.instrument || "USOIL"}
-            </h2>
+                <h2 style={styles.wti}>
+                  {latestSignal.instrument || "USOIL"}
+                </h2>
 
-            <p style={styles.muted}>
-              {signal
-                ? `${signal.timeframe || "-"} · Entry ${
-                    signal.entry_price ?? "-"
-                  }`
-                : "No signal available"}
-            </p>
-          </div>
+                <p style={styles.muted}>
+                  Timeframe: {latestSignal.timeframe || "5m"}
+                </p>
+              </div>
 
-          <div>
-            <div style={styles.label}>DIRECTION</div>
+              <div>
+                <div style={styles.label}>DIRECTION</div>
 
-            <div
-              style={
-                signal?.direction === "SHORT"
-                  ? { ...styles.greenBig, color: "#ff5c72" }
-                  : styles.greenBig
-              }
-            >
-              {signal?.direction
-                ? `${signal.direction} ${
-                    signal.direction === "SHORT" ? "↓" : "↑"
-                  }`
-                : "-"}
+                <div
+                  style={
+                    latestSignal.direction === "SHORT"
+                      ? styles.redBig
+                      : styles.greenBig
+                  }
+                >
+                  {latestSignal.direction || "-"}{" "}
+                  {latestSignal.direction === "LONG"
+                    ? "↑"
+                    : latestSignal.direction === "SHORT"
+                    ? "↓"
+                    : ""}
+                </div>
+              </div>
+
+              <div>
+                <div style={styles.label}>ENTRY</div>
+
+                <div style={styles.big}>
+                  {latestSignal.entry_price ?? "-"}
+                </div>
+              </div>
+
+              <div>
+                <div style={styles.label}>CONFIDENCE</div>
+
+                <div style={styles.big}>
+                  {latestSignal.confidence ?? "-"}%
+                </div>
+              </div>
+
+              <div>
+                <div style={styles.label}>SCORE</div>
+
+                <div style={styles.big}>
+                  {latestSignal.score ?? "-"}/100
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <div style={styles.live}>● LATEST SIGNAL</div>
+
+              <h2 style={styles.wti}>NO SIGNAL YET</h2>
+
+              <p style={styles.muted}>
+                Waiting for the next accepted WTI signal.
+              </p>
             </div>
-          </div>
-
-          <div>
-            <div style={styles.label}>CONFIDENCE</div>
-
-            <div style={styles.big}>
-              {signal?.confidence != null
-                ? `${signal.confidence}%`
-                : "-"}
-            </div>
-          </div>
-
-          <div>
-            <div style={styles.label}>SCORE</div>
-
-            <div style={styles.big}>
-              {signal?.score ?? "-"}
-            </div>
-          </div>
+          )}
         </div>
       </section>
     </main>
@@ -276,6 +288,12 @@ const styles = {
 
   greenBig: {
     color: "#37f28b",
+    fontSize: 24,
+    fontWeight: 900,
+  },
+
+  redBig: {
+    color: "#ff4d5a",
     fontSize: 24,
     fontWeight: 900,
   },

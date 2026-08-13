@@ -714,6 +714,8 @@ planDesc: {
 },
 
 planButton: {
+  display: "block",
+  boxSizing: "border-box",
   width: "100%",
   background: "#37f28b",
   color: "#041008",
@@ -722,6 +724,9 @@ planButton: {
   padding: "13px 15px",
   fontWeight: 900,
   cursor: "pointer",
+  textDecoration: "none",
+  textAlign: "center",
+
 },
 
   performanceGrid: {

@@ -324,17 +324,33 @@ export default function DashboardPage() {
           </div>
 
           <div style={styles.card}>
-            <div style={styles.label}>CURRENT PLAN</div>
+  <div style={styles.label}>CURRENT PLAN</div>
 
-            <div style={styles.big}>{profile?.plan || "FREE"}</div>
+  <div style={styles.big}>{profile?.plan || "FREE"}</div>
 
-            <p style={styles.muted}>
-              Trial ends:{" "}
-              {profile?.trial_ends_at
-                ? new Date(profile.trial_ends_at).toLocaleDateString("en-GB")
-                : "Not available"}
-            </p>
-          </div>
+  <p style={styles.muted}>
+    {profile?.subscription_status === "active"
+      ? "Active paid subscription"
+      : profile?.trial_ends_at
+      ? `Trial ends: ${new Date(
+          profile.trial_ends_at
+        ).toLocaleDateString("en-GB")}`
+      : "Not available"}
+  </p>
+
+  {profile?.subscription_status === "active" && (
+    <button
+      type="button"
+      onClick={openBillingPortal}
+      disabled={portalLoading}
+      style={styles.manageButton}
+    >
+      {portalLoading
+        ? "OPENING STRIPE..."
+        : "MANAGE SUBSCRIPTION →"}
+    </button>
+  )}
+</div>
         </div>
 {profile?.subscription_status === "trial" && !hasPaidAccess && (
   <div style={styles.paywallCard}>

@@ -37,7 +37,9 @@ export default function Home() {
         </p>
 
         <div style={styles.buttons}>
-          <button style={styles.primary}>START 14 DAYS FREE →</button>
+          <a href="/signup" style={styles.primary}>
+  START 14 DAYS FREE →
+</a>
           <button style={styles.secondary}>VIEW PERFORMANCE</button>
         </div>
 
@@ -164,9 +166,12 @@ function Plan({ name, price, text, featured }) {
 
       <p style={styles.muted}>{text}</p>
 
-      <button style={featured ? styles.primary : styles.secondary}>
-        START FREE
-      </button>
+      <a
+  href="/signup"
+  style={featured ? styles.primary : styles.secondary}
+>
+  START FREE
+</a>
     </div>
   );
 }
@@ -248,9 +253,11 @@ const styles = {
   },
 
   primary: {
-    background: "#37f28b",
-    color: "#041008",
-    border: 0,
+  background: "#37f28b",
+  color: "#041008",
+  border: 0,
+  textDecoration: "none",
+  display: "inline-block",
     borderRadius: 5,
     padding: "15px 25px",
     fontWeight: 900,
@@ -261,6 +268,8 @@ const styles = {
     background: "transparent",
     color: "#f4f7f5",
     border: "1px solid #35413c",
+    textDecoration: "none",
+display: "inline-block",
     borderRadius: 5,
     padding: "15px 25px",
     fontWeight: 800,

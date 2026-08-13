@@ -13,8 +13,12 @@ export default function Home() {
         </div>
 
         <div style={styles.navRight}>
-          <span>Performance</span>
-          <span>Pricing</span>
+          <a href="#performance" style={styles.navLink}>
+  Performance
+</a>
+          <a href="#pricing" style={styles.navLink}>
+  Pricing
+</a>
           <a href="/login" style={styles.login}>
   LOG IN
 </a>
@@ -40,7 +44,9 @@ export default function Home() {
           <a href="/signup" style={styles.primary}>
   START 14 DAYS FREE →
 </a>
-          <button style={styles.secondary}>VIEW PERFORMANCE</button>
+          <a href="#performance" style={styles.secondary}>
+  VIEW PERFORMANCE
+</a>
         </div>
 
         <p style={styles.small}>No credit card required.</p>
@@ -71,7 +77,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section style={styles.performance}>
+      <section id="performance" style={styles.performance}>
         <div style={styles.sectionLabel}>RECENT SIGNALS</div>
 
         <div style={styles.table}>
@@ -104,7 +110,7 @@ export default function Home() {
         <div style={styles.yes}>📊 <span>MARKET DATA</span> ✓</div>
       </section>
 
-      <section style={styles.pricing}>
+      <section id="pricing" style={styles.pricing}>
         <div style={styles.sectionLabel}>CHOOSE YOUR ACCESS</div>
 
         <h2 style={styles.pricingTitle}>
@@ -182,6 +188,7 @@ const styles = {
     color: "#f4f7f5",
     minHeight: "100vh",
     fontFamily: "Arial, Helvetica, sans-serif",
+    scrollBehavior: "smooth",
   },
 
   nav: {
@@ -207,6 +214,11 @@ const styles = {
     alignItems: "center",
     gap: 30,
     fontSize: 13,
+    navLink: {
+  color: "#f4f7f5",
+  textDecoration: "none",
+  cursor: "pointer",
+},
   },
 
   login: {

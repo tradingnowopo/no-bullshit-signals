@@ -172,10 +172,7 @@ export default function Home() {
         </p>
       </section>
 
-      <footer style={styles.footer}>
-        <strong>NO BULLSHIT SIGNALS</strong>
-        <span>Market intelligence. Nothing mystical.</span>
-        <span>© 2026</span>
+      <section id="faq" style={styles.faqSection}>
           <section id="faq" style={styles.faqSection}>
         <div style={styles.sectionLabel}>FAQ</div>
 

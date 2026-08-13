@@ -837,7 +837,18 @@ planButton: {
   textDecoration: "none",
   textAlign: "center",
 },
-
+manageButton: {
+  marginTop: 15,
+  width: "100%",
+  background: "transparent",
+  color: "#37f28b",
+  border: "1px solid #23563b",
+  borderRadius: 5,
+  padding: "12px 14px",
+  fontWeight: 900,
+  fontSize: 11,
+  cursor: "pointer",
+},
 performanceGrid: {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",

@@ -120,18 +120,7 @@ export default function Home() {
         </h2>
 
         <div style={styles.plans}>
-          <Plan
-            name="PRO"
-            price="£14.99"
-            text="Essential WTI signals"
-          />
-
-          <Plan
-            name="VIP"
-            price="£24.99"
-            text="Advanced signals & history"
-            featured
-          />
+          
 
           <Plan
   name="PRO"
@@ -253,16 +242,18 @@ const styles = {
   },
 
   navRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 30,
-    fontSize: 13,
-    navLink: {
+  display: "flex",
+  alignItems: "center",
+  gap: 30,
+  fontSize: 13,
+},
+
+navLink: {
   color: "#f4f7f5",
   textDecoration: "none",
   cursor: "pointer",
 },
-  },
+  
 
   login: {
     background: "transparent",
@@ -522,26 +513,7 @@ check: {
   color: "#37f28b",
   fontWeight: 900,
 },
-  featureList: {
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-  margin: "25px 0 30px",
-  minHeight: 150,
-},
-
-featureItem: {
-  display: "flex",
-  alignItems: "flex-start",
-  gap: 10,
-  color: "#a6b1ab",
-  fontSize: 13,
-  lineHeight: 1.5,
-},
-
-check: {
-  color: "#37f28b",
-  fontWeight: 900,
+  
 },
   founder: {
     textAlign: "center",

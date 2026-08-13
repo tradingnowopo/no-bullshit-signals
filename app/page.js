@@ -514,7 +514,7 @@ check: {
   fontWeight: 900,
 },
   
-},
+
   founder: {
     textAlign: "center",
     color: "#37f28b",

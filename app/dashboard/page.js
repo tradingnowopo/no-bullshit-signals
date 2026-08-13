@@ -312,24 +312,33 @@ export default function DashboardPage() {
 
     <div style={styles.planGrid}>
       <div style={styles.planCard}>
-        <div style={styles.planName}>PRO</div>
-        <div style={styles.planDesc}>Core signal access</div>
-        <button style={styles.planButton}>CHOOSE PRO</button>
-      </div>
+  <div style={styles.planName}>PRO</div>
+  <div style={styles.planDesc}>Core signal access</div>
 
-      <div style={styles.planCard}>
-        <div style={styles.planName}>VIP</div>
-        <div style={styles.planDesc}>
-          Extended access and priority features
-        </div>
-        <button style={styles.planButton}>CHOOSE VIP</button>
-      </div>
+  <a href="/checkout?plan=pro" style={styles.planButton}>
+    CHOOSE PRO
+  </a>
+</div>
 
-      <div style={styles.planCard}>
-        <div style={styles.planName}>ORACLE</div>
-        <div style={styles.planDesc}>Full premium access</div>
-        <button style={styles.planButton}>CHOOSE ORACLE</button>
-      </div>
+<div style={styles.planCard}>
+  <div style={styles.planName}>VIP</div>
+  <div style={styles.planDesc}>
+    Extended access and priority features
+  </div>
+
+  <a href="/checkout?plan=vip" style={styles.planButton}>
+    CHOOSE VIP
+  </a>
+</div>
+
+<div style={styles.planCard}>
+  <div style={styles.planName}>ORACLE</div>
+  <div style={styles.planDesc}>Full premium access</div>
+
+  <a href="/checkout?plan=oracle" style={styles.planButton}>
+    CHOOSE ORACLE
+  </a>
+</div>
     </div>
   </div>
 ) : (
@@ -724,6 +733,9 @@ planButton: {
   padding: "13px 15px",
   fontWeight: 900,
   cursor: "pointer",
+  textDecoration: "none",
+  textAlign: "center",
+},
   textDecoration: "none",
   textAlign: "center",
 

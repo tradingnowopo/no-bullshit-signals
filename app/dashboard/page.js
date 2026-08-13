@@ -733,8 +733,7 @@ planButton: {
   padding: "13px 15px",
   fontWeight: 900,
   cursor: "pointer",
-  textDecoration: "none",
-  textAlign: "center",
+ 
 },
   textDecoration: "none",
   textAlign: "center",

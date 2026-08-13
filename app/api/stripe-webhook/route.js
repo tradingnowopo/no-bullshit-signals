@@ -81,12 +81,16 @@ export async function POST(request) {
       const newStatus = activeStatuses.includes(subscription.status)
         ? "active"
         : subscription.status;
+      const subscriptionEndsAt = subscription.cancel_at
+      ? new Date(subscription.cancel_at * 1000).toISOString()
+      : null;
 
       const { error } = await supabaseAdmin
         .from("profiles")
         .update({
-          subscription_status: newStatus,
-        })
+      subscription_status: newStatus,
+      subscription_ends_at: subscriptionEndsAt,
+    })
         .eq("stripe_subscription_id", stripeSubscriptionId);
 
       if (error) {

@@ -297,6 +297,52 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+{profile?.subscription_status === "trial" && !hasPaidAccess && (
+  <div style={styles.paywallCard}>
+    <div style={styles.paywallBadge}>FREE TRIAL</div>
+
+    <h2 style={styles.paywallTitle}>
+      {daysLeft} DAYS OF FREE ACCESS LEFT
+    </h2>
+
+    <p style={styles.paywallText}>
+      Enjoy your free trial or choose a plan now to continue your access.
+    </p>
+
+    <div style={styles.planGrid}>
+      <div style={styles.planCard}>
+        <div style={styles.planName}>PRO — £14.99</div>
+        <div style={styles.planDesc}>Core WTI signal access</div>
+
+        <a href="/checkout?plan=pro" style={styles.planButton}>
+          CHOOSE PRO
+        </a>
+      </div>
+
+      <div style={styles.planCard}>
+        <div style={styles.planName}>VIP — £24.99</div>
+        <div style={styles.planDesc}>
+          Advanced signals, history and analytics
+        </div>
+
+        <a href="/checkout?plan=vip" style={styles.planButton}>
+          CHOOSE VIP
+        </a>
+      </div>
+
+      <div style={styles.planCard}>
+        <div style={styles.planName}>ORACLE — £39.99</div>
+        <div style={styles.planDesc}>
+          Full premium market intelligence
+        </div>
+
+        <a href="/checkout?plan=oracle" style={styles.planButton}>
+          CHOOSE ORACLE
+        </a>
+      </div>
+    </div>
+  </div>
+)}
 {accessBlocked ? (
   <div style={styles.paywallCard}>
     <div style={styles.paywallBadge}>TRIAL ENDED</div>

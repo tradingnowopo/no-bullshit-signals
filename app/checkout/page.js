@@ -2,6 +2,7 @@
 
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 const plans = {
@@ -42,7 +43,7 @@ const plans = {
   },
 };
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const searchParams = useSearchParams();
   const planKey = String(searchParams.get("plan") || "pro").toLowerCase();
 
@@ -98,7 +99,22 @@ export default function CheckoutPage() {
     </main>
   );
 }
-
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={styles.main}>
+          <div style={styles.container}>
+            <div style={styles.badge}>CHECKOUT</div>
+            <h1 style={styles.title}>LOADING CHECKOUT...</h1>
+          </div>
+        </main>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
+  );
+}
 const styles = {
   main: {
     minHeight: "100vh",

@@ -173,7 +173,7 @@ export default function Home() {
       </section>
 
       <section id="faq" style={styles.faqSection}>
-          <section id="faq" style={styles.faqSection}>
+        
         <div style={styles.sectionLabel}>FAQ</div>
 
         <h2 style={styles.faqTitle}>STRAIGHT ANSWERS.</h2>
@@ -244,6 +244,22 @@ export default function Home() {
           Past performance is not a guarantee of future results.
         </p>
       </section>
+        <footer style={styles.footer}>
+        <strong>NO BULLSHIT SIGNALS</strong>
+
+        <span>Market intelligence. Nothing mystical.</span>
+
+        <div style={styles.footerLinks}>
+          <a href="/terms" style={styles.footerLink}>
+            Terms
+          </a>
+
+          <a href="/privacy" style={styles.footerLink}>
+            Privacy
+          </a>
+
+          <span>© 2026</span>
+        </div>
       </footer>
     </main>
   );
@@ -648,14 +664,28 @@ riskText: {
   lineHeight: 1.8,
   maxWidth: 900,
 },
-  footer: {
-    borderTop: "1px solid #1c2622",
-    padding: "30px 6%",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 20,
-    color: "#65716b",
-    fontSize: 12,
-    flexWrap: "wrap",
-  },
+
+footer: {
+  borderTop: "1px solid #1c2622",
+  padding: "30px 6%",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 20,
+  color: "#65716b",
+  fontSize: 12,
+  flexWrap: "wrap",
+},
+
+footerLinks: {
+  display: "flex",
+  alignItems: "center",
+  gap: 20,
+  flexWrap: "wrap",
+},
+
+footerLink: {
+  color: "#89958f",
+  textDecoration: "none",
+  cursor: "pointer",
+},
 };

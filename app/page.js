@@ -15,7 +15,9 @@ export default function Home() {
         <div style={styles.navRight}>
           <span>Performance</span>
           <span>Pricing</span>
-          <button style={styles.login}>LOG IN</button>
+          <a href="/login" style={styles.login}>
+  LOG IN
+</a>
         </div>
       </nav>
 

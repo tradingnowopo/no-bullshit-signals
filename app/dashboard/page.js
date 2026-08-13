@@ -19,19 +19,33 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
   useEffect(() => {
-  const refreshSystemStatus = async () => {
-    const { data, error } = await supabase
+  const refreshLiveData = async () => {
+    const { data: systemData, error: systemError } = await supabase
       .from("system_status")
       .select("last_tracker_at, symbol, timeframe")
       .eq("id", 1)
       .single();
 
-    if (!error && data) {
-      setSystemStatus(data);
+    if (!systemError && systemData) {
+      setSystemStatus(systemData);
+    }
+
+    const { data: signalsData, error: signalsError } = await supabase
+      .from("signals")
+      .select(
+        "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status, stop_loss, tp1, tp2, result, exit_price, pnl_percent, closed_at, tp2_hit, tp2_hit_at, max_favorable_price"
+      )
+      .eq("status", "accepted")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (!signalsError && signalsData) {
+      setSignals(signalsData);
+      setLatestSignal(signalsData.length > 0 ? signalsData[0] : null);
     }
   };
 
-  const interval = setInterval(refreshSystemStatus, 30000);
+  const interval = setInterval(refreshLiveData, 30000);
 
   return () => clearInterval(interval);
 }, []);

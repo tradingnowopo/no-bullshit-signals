@@ -1,9 +1,13 @@
-
-
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+);
 
 const plans = {
   pro: {
@@ -45,9 +49,69 @@ const plans = {
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
-  const planKey = String(searchParams.get("plan") || "pro").toLowerCase();
 
-  const plan = plans[planKey] || plans.pro;
+  const requestedPlan = String(
+    searchParams.get("plan") || "pro"
+  ).toLowerCase();
+
+  const planKey = plans[requestedPlan] ? requestedPlan : "pro";
+  const plan = plans[planKey];
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function startCheckout() {
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        window.location.href =
+          `/login?next=${encodeURIComponent(`/checkout?plan=${planKey}`)}`;
+        return;
+      }
+
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          plan: planKey,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          window.location.href =
+            `/login?next=${encodeURIComponent(`/checkout?plan=${planKey}`)}`;
+          return;
+        }
+
+        throw new Error(data?.error || "Unable to start checkout.");
+      }
+
+      if (!data?.url) {
+        throw new Error("Stripe checkout URL was not returned.");
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error("CHECKOUT ERROR:", error);
+      setMessage(
+        error?.message || "Unable to start checkout. Please try again."
+      );
+      setLoading(false);
+    }
+  }
 
   return (
     <main style={styles.main}>
@@ -56,7 +120,7 @@ function CheckoutContent() {
           NO <span style={styles.green}>BULLSHIT</span> SIGNALS
         </a>
 
-        <div style={styles.badge}>CHECKOUT</div>
+        <div style={styles.badge}>SECURE CHECKOUT</div>
 
         <h1 style={styles.title}>CHOOSE YOUR ACCESS</h1>
 
@@ -83,13 +147,29 @@ function CheckoutContent() {
             ))}
           </div>
 
-          <div style={styles.paymentBox}>
-            PAYMENT COMING NEXT
-          </div>
+          <button
+            type="button"
+            onClick={startCheckout}
+            disabled={loading}
+            style={{
+              ...styles.payButton,
+              ...(loading ? styles.payButtonDisabled : {}),
+            }}
+          >
+            {loading
+              ? "OPENING SECURE CHECKOUT..."
+              : `CONTINUE WITH ${plan.name} →`}
+          </button>
 
           <p style={styles.small}>
-            Secure subscription checkout will be connected here.
+            Payment is processed securely by Stripe.
           </p>
+
+          {message && (
+            <div style={styles.message}>
+              {message}
+            </div>
+          )}
 
           <a href="/dashboard" style={styles.back}>
             ← BACK TO DASHBOARD
@@ -99,6 +179,7 @@ function CheckoutContent() {
     </main>
   );
 }
+
 export default function CheckoutPage() {
   return (
     <Suspense
@@ -115,6 +196,7 @@ export default function CheckoutPage() {
     </Suspense>
   );
 }
+
 const styles = {
   main: {
     minHeight: "100vh",
@@ -212,20 +294,39 @@ const styles = {
     fontWeight: 900,
   },
 
-  paymentBox: {
-    border: "1px dashed #35413c",
-    padding: 20,
-    textAlign: "center",
-    color: "#718078",
+  payButton: {
+    width: "100%",
+    background: "#37f28b",
+    color: "#041008",
+    border: 0,
+    borderRadius: 5,
+    padding: "16px 20px",
     fontWeight: 900,
-    letterSpacing: 1,
-    marginBottom: 15,
+    cursor: "pointer",
+    fontSize: 14,
+  },
+
+  payButtonDisabled: {
+    opacity: 0.6,
+    cursor: "wait",
   },
 
   small: {
     color: "#65726b",
     fontSize: 12,
     textAlign: "center",
+    marginTop: 15,
+  },
+
+  message: {
+    marginTop: 20,
+    background: "#171308",
+    border: "1px solid #6b5622",
+    color: "#f4c95d",
+    padding: 14,
+    borderRadius: 5,
+    fontSize: 13,
+    lineHeight: 1.5,
   },
 
   back: {

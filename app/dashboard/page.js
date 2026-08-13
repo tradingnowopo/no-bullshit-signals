@@ -104,9 +104,49 @@ export default function DashboardPage() {
   }
 
   async function logout() {
-    await supabase.auth.signOut();
-    window.location.href = "/";
-    async function openBillingPortal() {
+  await supabase.auth.signOut();
+  window.location.href = "/";
+}
+
+async function openBillingPortal() {
+  try {
+    setPortalLoading(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const response = await fetch("/api/create-portal-session", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Unable to open billing portal.");
+    }
+
+    if (!data?.url) {
+      throw new Error("Portal URL was not returned.");
+    }
+
+    window.location.href = data.url;
+  } catch (error) {
+    console.error("PORTAL ERROR:", error);
+    alert(error?.message || "Unable to open subscription portal.");
+    setPortalLoading(false);
+  }
+}
+
+function getTrialDaysLeft() {
   try {
     setPortalLoading(true);
 

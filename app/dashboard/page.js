@@ -329,14 +329,18 @@ export default function DashboardPage() {
   <div style={styles.big}>{profile?.plan || "FREE"}</div>
 
   <p style={styles.muted}>
-    {profile?.subscription_status === "active"
-      ? "Active paid subscription"
-      : profile?.trial_ends_at
-      ? `Trial ends: ${new Date(
-          profile.trial_ends_at
+  {profile?.subscription_status === "active"
+    ? profile?.subscription_ends_at
+      ? `Active subscription — cancels on ${new Date(
+          profile.subscription_ends_at
         ).toLocaleDateString("en-GB")}`
-      : "Not available"}
-  </p>
+      : "Active paid subscription"
+    : profile?.trial_ends_at
+    ? `Trial ends: ${new Date(
+        profile.trial_ends_at
+      ).toLocaleDateString("en-GB")}`
+    : "Not available"}
+</p>
 
   {profile?.subscription_status === "active" && (
     <button

@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState(null);
   const [latestSignal, setLatestSignal] = useState(null);
   const [signals, setSignals] = useState([]);
+  const [historyFilter, setHistoryFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
   const [systemStatus, setSystemStatus] = useState(null);
   useEffect(() => {
@@ -209,6 +210,18 @@ export default function DashboardPage() {
   );
 
   const accessBlocked = trialExpired && !hasPaidAccess;
+  const filteredSignals = signals.filter((signal) => {
+  if (historyFilter === "ALL") return true;
+  if (historyFilter === "LONG") return signal.direction === "LONG";
+  if (historyFilter === "SHORT") return signal.direction === "SHORT";
+  if (historyFilter === "WIN") return signal.result === "WIN";
+  if (historyFilter === "LOSS") return signal.result === "LOSS";
+  if (historyFilter === "RUNNER") {
+    return getSignalResult(signal) === "🚀 RUNNER";
+  }
+
+  return true;
+});
   const lastTrackerAt = systemStatus?.last_tracker_at
   ? new Date(systemStatus.last_tracker_at)
   : null;
@@ -489,11 +502,24 @@ export default function DashboardPage() {
             </div>
 
             <div style={styles.signalCount}>
-              {signals.length} SIGNAL{signals.length === 1 ? "" : "S"}
+              {filteredSignals.length} SIGNAL{filteredSignals.length === 1 ? "" : "S"}
             </div>
           </div>
-
-          {signals.length > 0 ? (
+    <div style={styles.filterBar}>
+      {["ALL", "LONG", "SHORT", "WIN", "LOSS", "RUNNER"].map((filter) => (
+        <button
+          key={filter}
+          onClick={() => setHistoryFilter(filter)}
+          style={{
+        ...styles.filterButton,
+        ...(historyFilter === filter ? styles.filterButtonActive : {}),
+      }}
+    >
+      {filter}
+    </button>
+  ))}
+</div>
+          {filteredSignals.length > 0 ? (
             <div style={styles.tableWrapper}>
               <div style={styles.table}>
                 <div style={styles.tableHeader}>
@@ -507,8 +533,7 @@ export default function DashboardPage() {
                   <span>CONF.</span>
                   <span>RESULT</span>
                 </div>
-
-                {signals.map((signal) => (
+          {filteredSignals.map((signal) => (
                   <div style={styles.tableRow} key={signal.id}>
                     <span style={styles.dateCell}>
                       {formatDate(signal.created_at)}
@@ -864,7 +889,29 @@ planButton: {
     fontSize: 11,
     fontWeight: 900,
   },
+filterBar: {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginBottom: 18,
+},
 
+filterButton: {
+  background: "transparent",
+  color: "#89958f",
+  border: "1px solid #26342e",
+  borderRadius: 5,
+  padding: "8px 12px",
+  fontSize: 11,
+  fontWeight: 900,
+  cursor: "pointer",
+},
+
+filterButtonActive: {
+  color: "#37f28b",
+  border: "1px solid #23563b",
+  background: "#07110c",
+},
   tableWrapper: {
     overflowX: "auto",
     border: "1px solid #26342e",

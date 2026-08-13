@@ -134,10 +134,45 @@ export default function Home() {
           />
 
           <Plan
-            name="ORACLE"
-            price="£39.99"
-            text="Full market intelligence"
-          />
+  name="PRO"
+  price="£14.99"
+  text="Everything you need to follow WTI."
+  features={[
+    "Live WTI LONG & SHORT signals",
+    "Entry, Stop Loss, TP1 & TP2",
+    "Signal confidence & score",
+    "Live signal status",
+    "Recent signal history",
+  ]}
+/>
+
+<Plan
+  name="VIP"
+  price="£24.99"
+  text="More data. More history. More control."
+  features={[
+    "Everything in PRO",
+    "Full signal history",
+    "Advanced performance statistics",
+    "Signal filtering & analysis",
+    "Priority access to new features",
+  ]}
+  featured
+/>
+
+<Plan
+  name="ORACLE"
+  price="£39.99"
+  text="The complete market intelligence package."
+  features={[
+    "Everything in VIP",
+    "Advanced market intelligence",
+    "Extended market context",
+    "Premium analytics",
+    "Highest level of platform access",
+    "Early access to future tools",
+  ]}
+/>
         </div>
 
         <p style={styles.founder}>
@@ -154,7 +189,7 @@ export default function Home() {
   );
 }
 
-function Plan({ name, price, text, featured }) {
+function Plan({ name, price, text, features, featured }) {
   return (
     <div
       style={{
@@ -171,6 +206,14 @@ function Plan({ name, price, text, featured }) {
       </div>
 
       <p style={styles.muted}>{text}</p>
+        <div style={styles.featureList}>
+  {features.map((feature, index) => (
+    <div key={index} style={styles.featureItem}>
+      <span style={styles.check}>✓</span>
+      <span>{feature}</span>
+    </div>
+  ))}
+</div>
 
       <a
   href="/signup"
@@ -458,7 +501,48 @@ display: "inline-block",
     color: "#75817b",
     fontSize: 12,
   },
+featureList: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  margin: "25px 0 30px",
+  minHeight: 150,
+},
 
+featureItem: {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+  color: "#a6b1ab",
+  fontSize: 13,
+  lineHeight: 1.5,
+},
+
+check: {
+  color: "#37f28b",
+  fontWeight: 900,
+},
+  featureList: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  margin: "25px 0 30px",
+  minHeight: 150,
+},
+
+featureItem: {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+  color: "#a6b1ab",
+  fontSize: 13,
+  lineHeight: 1.5,
+},
+
+check: {
+  color: "#37f28b",
+  fontWeight: 900,
+},
   founder: {
     textAlign: "center",
     color: "#37f28b",

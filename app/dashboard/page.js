@@ -64,7 +64,9 @@ export default function DashboardPage() {
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("plan, subscription_status, trial_started_at, trial_ends_at")
+      .select(
+      "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at"
+    )
       .eq("id", user.id)
       .single();
 

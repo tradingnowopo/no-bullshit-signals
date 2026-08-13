@@ -733,19 +733,17 @@ planButton: {
   padding: "13px 15px",
   fontWeight: 900,
   cursor: "pointer",
- 
-},
   textDecoration: "none",
   textAlign: "center",
-
 },
 
-  performanceGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
-    gap: 12,
-    marginBottom: 55,
-  },
+performanceGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+  gap: 12,
+  marginBottom: 55,
+},
+  
 
   card: {
     border: "1px solid #26342e",

@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [historyFilter, setHistoryFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
   const [systemStatus, setSystemStatus] = useState(null);
+  const [portalLoading, setPortalLoading] = useState(false);
   useEffect(() => {
     loadDashboard();
   }, []);

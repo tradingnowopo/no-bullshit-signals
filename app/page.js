@@ -19,6 +19,9 @@ export default function Home() {
           <a href="#pricing" style={styles.navLink}>
   Pricing
 </a>
+    <a href="#faq" style={styles.navLink}>
+  FAQ
+</a>
           <a href="/login" style={styles.login}>
   LOG IN
 </a>
@@ -173,6 +176,77 @@ export default function Home() {
         <strong>NO BULLSHIT SIGNALS</strong>
         <span>Market intelligence. Nothing mystical.</span>
         <span>© 2026</span>
+          <section id="faq" style={styles.faqSection}>
+        <div style={styles.sectionLabel}>FAQ</div>
+
+        <h2 style={styles.faqTitle}>STRAIGHT ANSWERS.</h2>
+
+        <div style={styles.faqGrid}>
+          <div style={styles.faqItem}>
+            <h3>What do I receive?</h3>
+            <p>
+              WTI LONG and SHORT market signals with entry price,
+              Stop Loss, TP1, TP2, confidence and score.
+            </p>
+          </div>
+
+          <div style={styles.faqItem}>
+            <h3>How often are signals sent?</h3>
+            <p>
+              There is no fixed number. Signals are generated only when
+              the market conditions meet the required criteria.
+            </p>
+          </div>
+
+          <div style={styles.faqItem}>
+            <h3>Is the 14-day trial really free?</h3>
+            <p>
+              Yes. No credit card is required to create an account and
+              start the free trial.
+            </p>
+          </div>
+
+          <div style={styles.faqItem}>
+            <h3>Are profits guaranteed?</h3>
+            <p>
+              No. Trading involves risk and no signal, strategy or
+              analysis can guarantee a profit.
+            </p>
+          </div>
+
+          <div style={styles.faqItem}>
+            <h3>What markets are covered?</h3>
+            <p>
+              The platform currently focuses on WTI crude oil / USOIL.
+            </p>
+          </div>
+
+          <div style={styles.faqItem}>
+            <h3>Can I cancel after the trial?</h3>
+            <p>
+              Yes. The trial does not require a payment card. Paid
+              subscription controls will be available with the plans.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section style={styles.riskSection}>
+        <div style={styles.riskBadge}>RISK NOTICE</div>
+
+        <h2 style={styles.riskTitle}>
+          TRADING INVOLVES RISK.
+        </h2>
+
+        <p style={styles.riskText}>
+          NO BULLSHIT SIGNALS provides market information and trading
+          signals for informational purposes only. Nothing on this
+          platform constitutes personal financial or investment advice.
+          Trading leveraged products can result in losses. You are
+          responsible for your own trading decisions and risk management.
+          Past performance is not a guarantee of future results.
+        </p>
+      </section>
       </footer>
     </main>
   );
@@ -522,7 +596,61 @@ check: {
     fontSize: 12,
     letterSpacing: 1,
   },
+faqSection: {
+  maxWidth: 1100,
+  margin: "0 auto",
+  padding: "80px 25px 40px",
+},
 
+faqTitle: {
+  fontSize: "clamp(35px,5vw,55px)",
+  marginTop: 0,
+  marginBottom: 40,
+},
+
+faqGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+  gap: 15,
+},
+
+faqItem: {
+  border: "1px solid #26322d",
+  background: "#080d0b",
+  padding: 25,
+  borderRadius: 8,
+},
+
+riskSection: {
+  maxWidth: 1100,
+  margin: "40px auto 80px",
+  padding: "30px 25px",
+  borderTop: "1px solid #302426",
+},
+
+riskBadge: {
+  display: "inline-block",
+  color: "#f4c95d",
+  border: "1px solid #6b5622",
+  padding: "6px 9px",
+  borderRadius: 4,
+  fontSize: 10,
+  fontWeight: 900,
+  letterSpacing: 1.5,
+  marginBottom: 15,
+},
+
+riskTitle: {
+  fontSize: 28,
+  marginBottom: 15,
+},
+
+riskText: {
+  color: "#89958f",
+  fontSize: 13,
+  lineHeight: 1.8,
+  maxWidth: 900,
+},
   footer: {
     borderTop: "1px solid #1c2622",
     padding: "30px 6%",

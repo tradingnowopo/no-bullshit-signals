@@ -71,7 +71,9 @@ export default function LoginPage() {
             placeholder="Your password"
             style={styles.input}
           />
-
+        <a href="/forgot-password" style={styles.forgotLink}>
+          FORGOT PASSWORD?
+          </a>
           <button disabled={loading} type="submit" style={styles.button}>
             {loading ? "LOGGING IN..." : "LOG IN →"}
           </button>
@@ -194,7 +196,14 @@ const styles = {
     fontSize: 13,
     lineHeight: 1.5,
   },
-
+  forgotLink: {
+  color: "#37f28b",
+  textAlign: "right",
+  marginTop: 10,
+  fontSize: 11,
+  fontWeight: 900,
+  textDecoration: "none",
+},
   signupText: {
     textAlign: "center",
     color: "#7b8982",

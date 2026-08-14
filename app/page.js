@@ -128,26 +128,30 @@ export default function Home() {
           <Plan
   name="PRO"
   price="£14.99"
-  text="Everything you need to follow WTI."
+  text="WTI SIGNALS — Trade the setup. Skip the noise."
   features={[
-    "Live WTI LONG & SHORT signals",
+    "WTI LONG & SHORT signals",
     "Entry, Stop Loss, TP1 & TP2",
-    "Signal confidence & score",
-    "Live signal status",
-    "Recent signal history",
+    "Confidence & Signal Score",
+    "Telegram notifications",
+    "Live member dashboard",
+    "Full signal history",
+    "Performance tracking",
   ]}
 />
 
 <Plan
   name="VIP"
   price="£24.99"
-  text="More data. More history. More control."
+  text="WTI INTELLIGENCE — Don't just receive the signal. See what's behind the market."
   features={[
     "Everything in PRO",
-    "Full signal history",
-    "Advanced performance statistics",
-    "Signal filtering & analysis",
-    "Priority access to new features",
+    "Live WTI News Risk",
+    "Bullish / Bearish news impact",
+    "News importance & confidence",
+    "Fundamental market context",
+    "Cross-market confirmation",
+    "Enhanced signal validation",
   ]}
   featured
 />
@@ -155,14 +159,15 @@ export default function Home() {
 <Plan
   name="ORACLE"
   price="£39.99"
-  text="The complete market intelligence package."
+  text="WTI POSITION GUARD — Markets don't stop moving after you enter. Neither does ORACLE."
   features={[
     "Everything in VIP",
-    "Advanced market intelligence",
-    "Extended market context",
-    "Premium analytics",
-    "Highest level of platform access",
-    "Early access to future tools",
+    "Position Guard",
+    "Active-trade news monitoring",
+    "Critical WTI event alerts",
+    "Risk-change warnings",
+    "Direction-conflict detection",
+    "Protection until TP2 / SL",
   ]}
 />
         </div>

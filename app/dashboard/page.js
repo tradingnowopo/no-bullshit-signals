@@ -518,7 +518,12 @@ export default function DashboardPage() {
             <div style={styles.label}>BREAK EVEN</div>
             <div style={styles.big}>{breakEven}</div>
           </div>
+          <div style={styles.statCard}>
+            <div style={styles.label}>VOID / GAP</div>
+            <div style={styles.big}>{voidGaps}</div>
+
         </div>
+      </div>
 
         <div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
 

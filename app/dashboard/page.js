@@ -249,10 +249,17 @@ export default function DashboardPage() {
     : 0;
 
   const hasPaidAccess =
-  profile?.subscription_status === "active" ||
-  ["PRO", "VIP", "ORACLE"].includes(
-    String(profile?.plan || "").toUpperCase()
-  );
+  profile?.subscription_status === "active";
+  const currentPlan = String(profile?.plan || "FREE").toUpperCase();
+
+const isPro =
+  hasPaidAccess && ["PRO", "VIP", "ORACLE"].includes(currentPlan);
+
+const isVip =
+  hasPaidAccess && ["VIP", "ORACLE"].includes(currentPlan);
+
+const isOracle =
+  hasPaidAccess && currentPlan === "ORACLE";
 
   const accessBlocked = trialExpired && !hasPaidAccess;
   const filteredSignals = signals.filter((signal) => {
@@ -524,7 +531,11 @@ export default function DashboardPage() {
 
         </div>
       </div>
-
+        {isVip && (
+          <div style={styles.sectionLabel}>
+            VIP PERFORMANCE ACCESS ACTIVE
+          </div>
+    )}
         <div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
 
         <div style={styles.latestCard}>

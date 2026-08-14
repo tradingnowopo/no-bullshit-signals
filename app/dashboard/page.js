@@ -179,6 +179,7 @@ export default function DashboardPage() {
   }
   function getSignalResult(signal) {
   if (!signal) return "OPEN";
+  if (signal.result === "VOID_GAP") return "⚪ VOID — MARKET GAP";
 
   if (signal.result === "LOSS") return "❌ SL HIT";
 
@@ -232,6 +233,9 @@ export default function DashboardPage() {
 
   const wins = signals.filter((signal) => signal.result === "WIN").length;
   const losses = signals.filter((signal) => signal.result === "LOSS").length;
+  const voidGaps = signals.filter(
+  (signal) => signal.result === "VOID_GAP"
+).length;
   const openSignals = signals.filter(
     (signal) => !signal.result || signal.result === "OPEN"
   ).length;

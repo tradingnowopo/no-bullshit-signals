@@ -95,6 +95,17 @@ export default function DashboardPage() {
 
     if (systemStatusError) {
       console.error("SYSTEM STATUS ERROR:", systemStatusError);
+      const { data: newsStateData, error: newsStateError } = await supabase
+  .from("wti_news_state")
+  .select(
+    "id, event_key, impact, importance, confidence, critical, verified_at, expires_at, updated_at"
+  )
+  .eq("id", 1)
+  .single();
+
+if (newsStateError) {
+  console.error("WTI NEWS STATE ERROR:", newsStateError);
+
 }
     const cleanSignals = signalsData || [];
 
@@ -103,7 +114,8 @@ export default function DashboardPage() {
     setSignals(cleanSignals);
     setLatestSignal(cleanSignals.length > 0 ? cleanSignals[0] : null);
     setSystemStatus(systemStatusData);
-    setLoading(false);
+setNewsState(newsStateData);
+setLoading(false);
   }
 
   async function logout() {

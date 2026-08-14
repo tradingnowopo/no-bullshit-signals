@@ -320,6 +320,22 @@ const newsActive =
   newsExpiresAt.getTime() > Date.now();
 
 const newsImpact = String(newsState?.impact || "NEUTRAL").toUpperCase();
+  const newsExpiresAt = newsState?.expires_at
+  ? new Date(newsState.expires_at)
+  : null;
+
+const newsExpiresMinutes = newsExpiresAt
+  ? Math.max(0, Math.floor((newsExpiresAt.getTime() - Date.now()) / 60000))
+  : null;
+
+const newsExpiresText =
+  newsExpiresMinutes === null
+    ? "-"
+    : newsExpiresMinutes <= 0
+    ? "EXPIRED"
+    : newsExpiresMinutes < 60
+    ? `${newsExpiresMinutes} MIN`
+    : `${Math.floor(newsExpiresMinutes / 60)}H ${newsExpiresMinutes % 60}MIN`;
   if (loading) {
   return (
     <main style={styles.main}>
@@ -566,6 +582,7 @@ const newsImpact = String(newsState?.impact || "NEUTRAL").toUpperCase();
     <span>
       CONFIDENCE: {newsActive ? `${newsState?.confidence ?? "-"}%` : "-"}
     </span>
+      <span>EXPIRES IN: {newsActive ? newsExpiresText : "-"}</span>
   </div>
 </div>
         {isVip && (

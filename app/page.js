@@ -257,7 +257,9 @@ export default function Home() {
           <a href="/privacy" style={styles.footerLink}>
             Privacy
           </a>
-
+          <a href="/contact" style={styles.footerLink}>
+            Contact
+          </a>
           <span>© 2026</span>
         </div>
       </footer>

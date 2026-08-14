@@ -498,39 +498,45 @@ const isOracle =
     </span>
   </div>
 </div>
-        <div style={styles.sectionLabel}>PERFORMANCE</div>
+        {isVip && (
+  <>
+    <div style={styles.sectionLabel}>PERFORMANCE</div>
 
-        <div style={styles.performanceGrid}>
-          <div style={styles.statCard}>
-            <div style={styles.label}>WIN RATE</div>
-            <div style={styles.greenBig}>{winRate}%</div>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={styles.label}>WINS</div>
-            <div style={styles.greenBig}>{wins}</div>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={styles.label}>LOSSES</div>
-            <div style={styles.redBig}>{losses}</div>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={styles.label}>OPEN</div>
-            <div style={styles.yellowBig}>{openSignals}</div>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={styles.label}>BREAK EVEN</div>
-            <div style={styles.big}>{breakEven}</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.label}>VOID / GAP</div>
-            <div style={styles.big}>{voidGaps}</div>
-
-        </div>
+    <div style={styles.performanceGrid}>
+      <div style={styles.statCard}>
+        <div style={styles.label}>WIN RATE</div>
+        <div style={styles.greenBig}>{winRate}%</div>
       </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.label}>WINS</div>
+        <div style={styles.greenBig}>{wins}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.label}>LOSSES</div>
+        <div style={styles.redBig}>{losses}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.label}>OPEN</div>
+        <div style={styles.yellowBig}>{openSignals}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.label}>BREAK EVEN</div>
+        <div style={styles.big}>{breakEven}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.label}>VOID / GAP</div>
+        <div style={styles.big}>{voidGaps}</div>
+      </div>
+    </div>
+  </>
+)}
+
+<div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
         
         <div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
 

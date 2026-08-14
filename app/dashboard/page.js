@@ -320,9 +320,7 @@ const newsActive =
   newsExpiresAt.getTime() > Date.now();
 
 const newsImpact = String(newsState?.impact || "NEUTRAL").toUpperCase();
-  const newsExpiresAt = newsState?.expires_at
-  ? new Date(newsState.expires_at)
-  : null;
+  
 
 const newsExpiresMinutes = newsExpiresAt
   ? Math.max(0, Math.floor((newsExpiresAt.getTime() - Date.now()) / 60000))

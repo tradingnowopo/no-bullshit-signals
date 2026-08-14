@@ -99,14 +99,16 @@ if (!newsError && newsData) {
       console.error("SIGNALS ERROR:", signalsError);
     }
   const { data: systemStatusData, error: systemStatusError } = await supabase
-      .from("system_status")
-      .select("last_tracker_at, symbol, timeframe")
-      .eq("id", 1)
-      .single();
+  .from("system_status")
+  .select("last_tracker_at, symbol, timeframe")
+  .eq("id", 1)
+  .single();
 
-    if (systemStatusError) {
-      console.error("SYSTEM STATUS ERROR:", systemStatusError);
-      const { data: newsStateData, error: newsStateError } = await supabase
+if (systemStatusError) {
+  console.error("SYSTEM STATUS ERROR:", systemStatusError);
+}
+
+const { data: newsStateData, error: newsStateError } = await supabase
   .from("wti_news_state")
   .select(
     "id, event_key, impact, importance, confidence, critical, verified_at, expires_at, updated_at"
@@ -116,7 +118,6 @@ if (!newsError && newsData) {
 
 if (newsStateError) {
   console.error("WTI NEWS STATE ERROR:", newsStateError);
-
 }
     const cleanSignals = signalsData || [];
 

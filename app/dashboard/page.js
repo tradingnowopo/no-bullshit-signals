@@ -531,11 +531,7 @@ const isOracle =
 
         </div>
       </div>
-        {isVip && (
-          <div style={styles.sectionLabel}>
-            VIP PERFORMANCE ACCESS ACTIVE
-          </div>
-    )}
+        
         <div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
 
         <div style={styles.latestCard}>

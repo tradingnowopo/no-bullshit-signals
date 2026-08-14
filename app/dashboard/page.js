@@ -536,7 +536,6 @@ const isOracle =
   </>
 )}
 
-<div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
         
         <div style={styles.sectionLabel}>LATEST ACCEPTED SIGNAL</div>
 

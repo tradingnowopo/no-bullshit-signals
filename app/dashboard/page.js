@@ -32,6 +32,17 @@ export default function DashboardPage() {
     if (!systemError && systemData) {
       setSystemStatus(systemData);
     }
+    const { data: newsData, error: newsError } = await supabase
+  .from("wti_news_state")
+  .select(
+    "id, event_key, impact, importance, confidence, critical, verified_at, expires_at, updated_at"
+  )
+  .eq("id", 1)
+  .single();
+
+if (!newsError && newsData) {
+  setNewsState(newsData);
+}
 
     const { data: signalsData, error: signalsError } = await supabase
       .from("signals")
@@ -298,6 +309,16 @@ const isOracle =
   const trackerAgeMinutes = Math.floor(trackerAgeMs / 60000);
 
   const systemOnline = trackerAgeMinutes <= 10;
+    const newsExpiresAt = newsState?.expires_at
+  ? new Date(newsState.expires_at)
+  : null;
+
+const newsActive =
+  newsState?.critical === true &&
+  newsExpiresAt &&
+  newsExpiresAt.getTime() > Date.now();
+
+const newsImpact = String(newsState?.impact || "NEUTRAL").toUpperCase();
   if (loading) {
   return (
     <main style={styles.main}>
@@ -508,6 +529,41 @@ const isOracle =
           ? "UPDATED: JUST NOW"
           : `UPDATED: ${trackerAgeMinutes} MIN AGO`
         : ""}
+    </span>
+  </div>
+</div>
+<div
+  style={{
+    ...styles.newsRiskBar,
+    borderColor: newsActive
+      ? newsImpact === "BULLISH"
+        ? "#23563b"
+        : newsImpact === "BEARISH"
+        ? "#5e2930"
+        : "#554a29"
+      : "#26342e",
+  }}
+>
+  <div>
+    <span style={styles.newsRiskDot}>
+      {newsActive ? "●" : "○"}
+    </span>{" "}
+    <strong>
+      {newsActive ? "ACTIVE NEWS RISK" : "NO ACTIVE CRITICAL NEWS"}
+    </strong>
+  </div>
+
+  <div style={styles.newsRiskInfo}>
+    <span>
+      IMPACT: {newsActive ? newsImpact : "NONE"}
+    </span>
+
+    <span>
+      IMPORTANCE: {newsActive ? `${newsState?.importance ?? "-"}/5` : "-"}
+    </span>
+
+    <span>
+      CONFIDENCE: {newsActive ? `${newsState?.confidence ?? "-"}%` : "-"}
     </span>
   </div>
 </div>
@@ -1162,5 +1218,32 @@ systemInfo: {
   gap: 25,
   color: "#89958f",
   fontSize: 11,
+},
+  newsRiskBar: {
+  marginBottom: 30,
+  padding: "14px 18px",
+  border: "1px solid #26342e",
+  background: "#09100d",
+  borderRadius: 6,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 20,
+  fontSize: 12,
+  letterSpacing: 1,
+  flexWrap: "wrap",
+},
+
+newsRiskDot: {
+  color: "#f4c95d",
+  marginRight: 5,
+},
+
+newsRiskInfo: {
+  display: "flex",
+  gap: 25,
+  color: "#89958f",
+  fontSize: 11,
+  flexWrap: "wrap",
 },
 };

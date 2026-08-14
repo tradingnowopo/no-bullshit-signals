@@ -560,9 +560,20 @@ const newsExpiresText =
   }}
 >
   <div>
-    <span style={styles.newsRiskDot}>
-      {newsActive ? "●" : "○"}
-    </span>{" "}
+    <span
+  style={{
+    ...styles.newsRiskDot,
+    color: !newsActive
+      ? "#89958f"
+      : newsImpact === "BULLISH"
+      ? "#37f28b"
+      : newsImpact === "BEARISH"
+      ? "#ff4d5a"
+      : "#f4c95d",
+  }}
+>
+  {newsActive ? "●" : "○"}
+</span>{" "}
     <strong>
       {newsActive ? "ACTIVE NEWS RISK" : "NO ACTIVE CRITICAL NEWS"}
     </strong>

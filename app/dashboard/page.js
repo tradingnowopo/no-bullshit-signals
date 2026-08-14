@@ -539,35 +539,92 @@ const newsExpiresText =
     </p>
 
     <div style={styles.planGrid}>
-      <div style={styles.planCard}>
-  <div style={styles.planName}>PRO</div>
-  <div style={styles.planDesc}>Core signal access</div>
+  <div style={styles.planCard}>
+    <div style={styles.planName}>PRO — £14.99</div>
 
-  <a href="/checkout?plan=pro" style={styles.planButton}>
-    CHOOSE PRO
-  </a>
-</div>
+    <div style={styles.planTagline}>WTI SIGNALS</div>
 
-<div style={styles.planCard}>
-  <div style={styles.planName}>VIP</div>
-  <div style={styles.planDesc}>
-    Extended access and priority features
+    <div style={styles.planDesc}>
+      Trade the setup. Skip the noise.
+    </div>
+
+    <div style={styles.featureList}>
+      <div>✓ WTI LONG & SHORT signals</div>
+      <div>✓ Entry, Stop Loss, TP1 & TP2</div>
+      <div>✓ Confidence & Signal Score</div>
+      <div>✓ Telegram notifications</div>
+      <div>✓ Live member dashboard</div>
+      <div>✓ Full signal history</div>
+      <div>✓ Performance tracking</div>
+    </div>
+
+    <a href="/checkout?plan=pro" style={styles.planButton}>
+      CHOOSE PRO
+    </a>
   </div>
 
-  <a href="/checkout?plan=vip" style={styles.planButton}>
-    CHOOSE VIP
-  </a>
-</div>
+  <div
+    style={{
+      ...styles.planCard,
+      ...styles.vipPlanCard,
+    }}
+  >
+    <div style={styles.popularBadge}>MOST POPULAR</div>
 
-<div style={styles.planCard}>
-  <div style={styles.planName}>ORACLE</div>
-  <div style={styles.planDesc}>Full premium access</div>
+    <div style={styles.planName}>VIP — £24.99</div>
 
-  <a href="/checkout?plan=oracle" style={styles.planButton}>
-    CHOOSE ORACLE
-  </a>
-</div>
+    <div style={styles.planTagline}>WTI INTELLIGENCE</div>
+
+    <div style={styles.planDesc}>
+      Don't just receive the signal. See what's behind the market.
     </div>
+
+    <div style={styles.featureList}>
+      <div>✓ Everything in PRO</div>
+      <div>✓ Live WTI News Risk</div>
+      <div>✓ Bullish / Bearish news impact</div>
+      <div>✓ News importance & confidence</div>
+      <div>✓ Fundamental market context</div>
+      <div>✓ Cross-market confirmation</div>
+      <div>✓ Enhanced signal validation</div>
+    </div>
+
+    <a href="/checkout?plan=vip" style={styles.planButton}>
+      CHOOSE VIP
+    </a>
+  </div>
+
+  <div
+    style={{
+      ...styles.planCard,
+      ...styles.oraclePlanCard,
+    }}
+  >
+    <div style={styles.oracleBadge}>MAXIMUM PROTECTION</div>
+
+    <div style={styles.planName}>ORACLE — £39.99</div>
+
+    <div style={styles.planTagline}>WTI POSITION GUARD</div>
+
+    <div style={styles.planDesc}>
+      Markets don't stop moving after you enter. Neither does ORACLE.
+    </div>
+
+    <div style={styles.featureList}>
+      <div>✓ Everything in VIP</div>
+      <div>✓ Position Guard</div>
+      <div>✓ Active-trade news monitoring</div>
+      <div>✓ Critical WTI event alerts</div>
+      <div>✓ Risk-change warnings</div>
+      <div>✓ Direction-conflict detection</div>
+      <div>✓ Protection until TP2 / SL</div>
+    </div>
+
+    <a href="/checkout?plan=oracle" style={styles.planButton}>
+      CHOOSE ORACLE
+    </a>
+  </div>
+</div>
   </div>
 ) : (
   <>

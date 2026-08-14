@@ -32,12 +32,13 @@ export default function PrivacyPage() {
         </section>
 
         <section style={styles.section}>
-          <h2>3. Payment Information</h2>
-          <p>
-            When paid subscriptions are introduced, payment information may
-            be processed by third-party payment providers such as Stripe.
-            We do not intend to store full payment card details directly on
-            our servers.
+        <h2>3. Payment Information</h2>
+        <p>
+        Subscription payments are processed by third-party payment providers
+        such as Stripe. We do not store full payment card details directly on
+        our servers. Payment providers may process information necessary to
+        complete payments, manage subscriptions, prevent fraud and comply with
+        legal obligations.
           </p>
         </section>
 

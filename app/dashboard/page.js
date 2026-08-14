@@ -570,8 +570,21 @@ const newsExpiresText =
 
   <div style={styles.newsRiskInfo}>
     <span>
-      IMPACT: {newsActive ? newsImpact : "NONE"}
-    </span>
+  IMPACT:{" "}
+  <strong
+    style={{
+      color: !newsActive
+        ? "#89958f"
+        : newsImpact === "BULLISH"
+        ? "#37f28b"
+        : newsImpact === "BEARISH"
+        ? "#ff4d5a"
+        : "#f4c95d",
+    }}
+  >
+    {newsActive ? newsImpact : "NONE"}
+  </strong>
+</span>
 
     <span>
       IMPORTANCE: {newsActive ? `${newsState?.importance ?? "-"}/5` : "-"}

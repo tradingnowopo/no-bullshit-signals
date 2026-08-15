@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [systemStatus, setSystemStatus] = useState(null);
   const [newsState, setNewsState] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [telegramLoading, setTelegramLoading] = useState(false);
   useEffect(() => {
     loadDashboard();
   }, []);
@@ -77,7 +78,9 @@ if (!newsError && newsData) {
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select(
-      "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at"
+      "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at".select(
+  "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at, telegram_connected, telegram_username"
+
     )
       .eq("id", user.id)
       .single();
@@ -172,7 +175,32 @@ setLoading(false);
       setPortalLoading(false);
     }
   }
+async function connectTelegram() {
+  try {
+    setTelegramLoading(true);
 
+    const { data: token, error } = await supabase.rpc(
+      "create_telegram_link_token"
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    if (!token) {
+      throw new Error("Telegram link token was not returned.");
+    }
+
+    const telegramUrl =
+      `https://t.me/NoBullshitSignalsbot?start=${encodeURIComponent(token)}`;
+
+    window.location.href = telegramUrl;
+  } catch (error) {
+    console.error("TELEGRAM CONNECT ERROR:", error);
+    alert(error?.message || "Unable to connect Telegram.");
+    setTelegramLoading(false);
+  }
+}
   function getTrialDaysLeft() {
     if (!profile?.trial_ends_at) return 0;
 
@@ -416,6 +444,22 @@ const newsExpiresText =
         : "MANAGE SUBSCRIPTION →"}
     </button>
   )}
+{profile?.telegram_connected ? (
+  <div style={styles.telegramConnected}>
+    ● TELEGRAM CONNECTED
+  </div>
+) : (
+  <button
+    type="button"
+    onClick={connectTelegram}
+    disabled={telegramLoading}
+    style={styles.telegramButton}
+  >
+    {telegramLoading
+      ? "CONNECTING..."
+      : "CONNECT TELEGRAM →"}
+  </button>
+)}
 </div>
         </div>
 {profile?.subscription_status === "trial" && !hasPaidAccess && (
@@ -1151,6 +1195,32 @@ manageButton: {
   fontWeight: 900,
   fontSize: 11,
   cursor: "pointer",
+},
+  telegramButton: {
+  marginTop: 10,
+  width: "100%",
+  background: "#229ED9",
+  color: "#ffffff",
+  border: 0,
+  borderRadius: 5,
+  padding: "12px 14px",
+  fontWeight: 900,
+  fontSize: 11,
+  cursor: "pointer",
+},
+
+telegramConnected: {
+  marginTop: 10,
+  width: "100%",
+  boxSizing: "border-box",
+  color: "#37f28b",
+  border: "1px solid #23563b",
+  background: "#07110c",
+  borderRadius: 5,
+  padding: "12px 14px",
+  fontWeight: 900,
+  fontSize: 11,
+  textAlign: "center",
 },
 performanceGrid: {
   display: "grid",

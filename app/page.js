@@ -112,7 +112,51 @@ export default function Home() {
         <div style={styles.cross}>🔮 <span>CRYSTAL BALLS</span> ✕</div>
         <div style={styles.yes}>📊 <span>MARKET DATA</span> ✓</div>
       </section>
+<section style={styles.howSection}>
+  <div style={styles.eyebrow}>HOW IT WORKS</div>
 
+  <h2 style={styles.sectionTitle}>
+    FROM MARKET TO SIGNAL.
+  </h2>
+
+  <div style={styles.howGrid}>
+    <div style={styles.howCard}>
+      <div style={styles.howNumber}>01</div>
+      <h3 style={styles.howTitle}>MARKET SCAN</h3>
+      <p style={styles.howText}>
+        WTI is monitored for technical structure, market context and
+        high-impact news.
+      </p>
+    </div>
+
+    <div style={styles.howCard}>
+      <div style={styles.howNumber}>02</div>
+      <h3 style={styles.howTitle}>SIGNAL VALIDATION</h3>
+      <p style={styles.howText}>
+        Only setups that meet the required conditions are accepted.
+        Everything else is rejected.
+      </p>
+    </div>
+
+    <div style={styles.howCard}>
+      <div style={styles.howNumber}>03</div>
+      <h3 style={styles.howTitle}>TRADE PLAN</h3>
+      <p style={styles.howText}>
+        Every accepted signal includes direction, Entry, Stop Loss,
+        TP1, TP2, confidence and score.
+      </p>
+    </div>
+
+    <div style={styles.howCard}>
+      <div style={styles.howNumber}>04</div>
+      <h3 style={styles.howTitle}>LIVE MONITORING</h3>
+      <p style={styles.howText}>
+        Signals and results are tracked continuously, with deeper market
+        intelligence and risk monitoring available on higher plans.
+      </p>
+    </div>
+  </div>
+</section>
       <section id="pricing" style={styles.pricing}>
         <div style={styles.sectionLabel}>CHOOSE YOUR ACCESS</div>
 
@@ -534,7 +578,60 @@ display: "inline-block",
     borderRadius: 7,
     color: "#37f28b",
   },
+howSection: {
+  maxWidth: 1100,
+  margin: "0 auto",
+  padding: "90px 25px",
+},
 
+eyebrow: {
+  color: "#718078",
+  letterSpacing: 2,
+  fontSize: 11,
+  marginBottom: 15,
+},
+
+sectionTitle: {
+  fontSize: "clamp(35px,5vw,60px)",
+  margin: 0,
+},
+
+howGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+  gap: 14,
+  marginTop: 38,
+},
+
+howCard: {
+  border: "1px solid #26342e",
+  background: "#09100d",
+  borderRadius: 8,
+  padding: "28px 24px",
+  minHeight: 210,
+},
+
+howNumber: {
+  color: "#37f28b",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 1.5,
+  marginBottom: 28,
+},
+
+howTitle: {
+  color: "#f4f7f5",
+  fontSize: 15,
+  fontWeight: 900,
+  margin: "0 0 14px 0",
+},
+
+howText: {
+  color: "#89958f",
+  fontSize: 13,
+  lineHeight: 1.7,
+  margin: 0,
+},
   pricing: {
     maxWidth: 1100,
     margin: "0 auto",

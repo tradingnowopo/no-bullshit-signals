@@ -285,6 +285,23 @@ export default function Home() {
     Position Guard with active-trade risk monitoring and critical event alerts.
   </p>
 </div>
+      <div style={styles.faqItem}>
+  <h3>Why WTI only?</h3>
+  <p>
+    We focus on one market instead of trying to cover everything.
+    The platform is built specifically around WTI crude oil, its price action,
+    market context, related markets and high-impact events.
+  </p>
+</div>
+
+<div style={styles.faqItem}>
+  <h3>Do I need to use a specific broker?</h3>
+  <p>
+    No. Signals are market-based and are not tied to a specific broker.
+    Prices may vary between brokers and data providers, so always check
+    the current market price before entering a trade.
+  </p>
+</div>
         </div>
       </section>
 

@@ -277,6 +277,14 @@ export default function Home() {
               subscription controls will be available with the plans.
             </p>
           </div>
+                <div style={styles.faqItem}>
+  <h3>What is the difference between PRO, VIP and ORACLE?</h3>
+  <p>
+    PRO gives you the core WTI signals and trade plan. VIP adds deeper
+    market intelligence, news impact and cross-market context. ORACLE adds
+    Position Guard with active-trade risk monitoring and critical event alerts.
+  </p>
+</div>
         </div>
       </section>
 

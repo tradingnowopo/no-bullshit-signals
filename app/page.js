@@ -16,6 +16,9 @@ export default function Home() {
           <a href="#performance" style={styles.navLink}>
   Performance
 </a>
+    <a href="#how-it-works" style={styles.navLink}>
+  How It Works
+</a>
           <a href="#pricing" style={styles.navLink}>
   Pricing
 </a>
@@ -112,7 +115,7 @@ export default function Home() {
         <div style={styles.cross}>🔮 <span>CRYSTAL BALLS</span> ✕</div>
         <div style={styles.yes}>📊 <span>MARKET DATA</span> ✓</div>
       </section>
-<section style={styles.howSection}>
+<section id="how-it-works" style={styles.howSection}>
   <div style={styles.eyebrow}>HOW IT WORKS</div>
 
   <h2 style={styles.sectionTitle}>

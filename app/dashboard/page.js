@@ -76,15 +76,12 @@ if (!newsError && newsData) {
     }
 
     const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select(
-      "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at".select(
-  "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at, telegram_connected, telegram_username"
-
-    )
-      .eq("id", user.id)
-      .single();
-
+  .from("profiles")
+  .select(
+    "plan, subscription_status, trial_started_at, trial_ends_at, subscription_ends_at, telegram_connected, telegram_username"
+  )
+  .eq("id", user.id)
+  .single();
     if (profileError) {
       console.error("PROFILE ERROR:", profileError);
     }

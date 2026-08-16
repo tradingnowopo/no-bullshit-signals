@@ -426,9 +426,10 @@ export default function Home() {
           <div style={styles.faqItem}>
             <h3>Can I cancel after the trial?</h3>
             <p>
-              Yes. The trial does not require a payment card. Paid
-              subscription controls will be available with the plans.
-            </p>
+            Yes. The 14-day trial does not require a payment card. If you choose a
+            paid plan after the trial, you can manage or cancel your subscription at
+            any time.
+          </p>
           </div>
                 <div style={styles.faqItem}>
   <h3>What is the difference between PRO, VIP and ORACLE?</h3>

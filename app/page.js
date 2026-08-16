@@ -206,14 +206,15 @@ export default function Home() {
 <Plan
   name="ORACLE"
   price="£39.99"
-  text="WTI POSITION GUARD — Markets don't stop moving after you enter. Neither does ORACLE."
+  text="WTI POSITION GUARD — Know when to trade. Know when NOT to trade."
   features={[
     "Everything in VIP",
+    "Rejected Setup Alerts",
+    "Know when NOT to trade",
     "Position Guard",
     "Active-trade news monitoring",
     "Critical WTI event alerts",
     "Risk-change warnings",
-    "Direction-conflict detection",
     "Protection until TP2 / SL",
   ]}
 />
@@ -279,11 +280,13 @@ export default function Home() {
           </div>
                 <div style={styles.faqItem}>
   <h3>What is the difference between PRO, VIP and ORACLE?</h3>
-  <p>
-    PRO gives you the core WTI signals and trade plan. VIP adds deeper
-    market intelligence, news impact and cross-market context. ORACLE adds
-    Position Guard with active-trade risk monitoring and critical event alerts.
-  </p>
+<p>
+  PRO gives you the core WTI signals and trade plan. VIP adds deeper
+  market intelligence, news impact and cross-market context. ORACLE adds
+  Rejected Setup Alerts, showing when a potential setup is deliberately
+  blocked, plus Position Guard with active-trade risk monitoring and
+  critical market alerts.
+</p>
 </div>
       <div style={styles.faqItem}>
   <h3>Why WTI only?</h3>

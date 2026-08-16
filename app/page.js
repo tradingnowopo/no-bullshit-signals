@@ -1,9 +1,95 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+);
+
+const PUBLIC_TRACKING_START = new Date("2026-08-16T16:00:00.000Z");
+
 export default function Home() {
-  const signals = [
-    { time: "14:35", market: "WTI", direction: "LONG", confidence: "72%", result: "+1.24%" },
-    { time: "12:10", market: "WTI", direction: "SHORT", confidence: "81%", result: "+0.87%" },
-    { time: "09:45", market: "WTI", direction: "LONG", confidence: "68%", result: "+0.54%" },
-  ];
+  const [signals, setSignals] = useState([]);
+  const [loadingSignals, setLoadingSignals] = useState(true);
+
+  useEffect(() => {
+    loadPublicSignals();
+
+    const interval = setInterval(() => {
+      loadPublicSignals();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  async function loadPublicSignals() {
+    const { data, error } = await supabase
+      .from("public_signals")
+      .select(
+        "id, created_at, instrument, direction, confidence, result, pnl_percent"
+      )
+      .gte("created_at", PUBLIC_TRACKING_START.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.error("PUBLIC SIGNALS ERROR:", error);
+      setLoadingSignals(false);
+      return;
+    }
+
+    setSignals(data || []);
+    setLoadingSignals(false);
+  }
+
+  function formatPublicDate(value) {
+    if (!value) return "-";
+
+    return new Date(value)
+      .toLocaleString("en-GB", {
+        timeZone: "Asia/Kuala_Lumpur",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+      .replace(",", "")
+      .toUpperCase();
+  }
+
+  function formatPublicResult(signal) {
+    if (!signal) return "-";
+
+    if (!signal.result || signal.result === "OPEN") {
+      return "● OPEN";
+    }
+
+    if (signal.result === "WIN") {
+      return signal.pnl_percent !== null &&
+        signal.pnl_percent !== undefined
+        ? `+${Number(signal.pnl_percent).toFixed(2)}%`
+        : "✓ WIN";
+    }
+
+    if (signal.result === "LOSS") {
+      return signal.pnl_percent !== null &&
+        signal.pnl_percent !== undefined
+        ? `${Number(signal.pnl_percent).toFixed(2)}%`
+        : "✕ LOSS";
+    }
+
+    if (signal.result === "BE") return "↔ BREAK EVEN";
+    if (signal.result === "VOID_GAP") return "VOID / GAP";
+
+    return String(signal.result).replaceAll("_", " ");
+  }
+
+  const latestSignal = signals.length > 0 ? signals[0] : null;
+  const recentSignals = signals.slice(0, 5);
 
   return (
     <main style={styles.main}>
@@ -59,55 +145,121 @@ export default function Home() {
       </section>
 
       <section style={styles.signalSection}>
-        <div style={styles.sectionLabel}>LATEST MARKET SIGNAL</div>
+  <div style={styles.sectionLabel}>LATEST MARKET SIGNAL</div>
 
-        <div style={styles.signalCard}>
-          <div>
-            <div style={styles.live}>
-              <span style={styles.dot}></span> LIVE SIGNAL
-            </div>
-
-            <h2 style={styles.wti}>WTI / USOIL</h2>
-            <p style={styles.muted}>Crude Oil · WTI market signal</p>
+  <div style={styles.signalCard}>
+    {latestSignal ? (
+      <>
+        <div>
+          <div style={styles.live}>
+            <span style={styles.dot}></span> LIVE SIGNAL
           </div>
 
-          <div style={styles.direction}>
-            <span style={styles.muted}>DIRECTION</span>
-            <strong style={styles.long}>LONG ↑</strong>
-          </div>
+          <h2 style={styles.wti}>
+            WTI / {latestSignal.instrument || "USOIL"}
+          </h2>
 
-          <div style={styles.direction}>
-            <span style={styles.muted}>CONFIDENCE</span>
-            <strong style={styles.confidence}>72%</strong>
-          </div>
+          <p style={styles.muted}>
+            {formatPublicDate(latestSignal.created_at)}
+          </p>
         </div>
-      </section>
+
+        <div style={styles.direction}>
+          <span style={styles.muted}>DIRECTION</span>
+
+          <strong
+            style={
+              latestSignal.direction === "SHORT"
+                ? styles.short
+                : styles.long
+            }
+          >
+            {latestSignal.direction}{" "}
+            {latestSignal.direction === "SHORT" ? "↓" : "↑"}
+          </strong>
+        </div>
+
+        <div style={styles.direction}>
+          <span style={styles.muted}>CONFIDENCE</span>
+
+          <strong style={styles.confidence}>
+            {latestSignal.confidence ?? "-"}%
+          </strong>
+        </div>
+      </>
+    ) : (
+      <div>
+        <div style={styles.live}>
+          <span style={styles.dot}></span> TRACKING ACTIVE
+        </div>
+
+        <h2 style={styles.wti}>WTI / USOIL</h2>
+
+        <p style={styles.muted}>
+          PERFORMANCE TRACKING STARTED 17 AUG 2026
+        </p>
+
+        <p style={styles.muted}>
+          {loadingSignals
+            ? "Loading live signal data..."
+            : "Waiting for the first verified WTI signal."}
+        </p>
+      </div>
+    )}
+  </div>
+</section>
 
       <section id="performance" style={styles.performance}>
-        <div style={styles.sectionLabel}>RECENT SIGNALS</div>
+  <div style={styles.sectionLabel}>RECENT SIGNALS</div>
 
-        <div style={styles.table}>
-          {signals.map((signal, index) => (
-            <div style={styles.row} key={index}>
-              <span>{signal.time}</span>
-              <strong>{signal.market}</strong>
+  <div style={styles.performanceStart}>
+    VERIFIED PERFORMANCE TRACKING · FROM 17 AUG 2026
+  </div>
 
-              <span
-                style={
-                  signal.direction === "LONG"
-                    ? styles.long
-                    : styles.short
-                }
-              >
-                {signal.direction}
-              </span>
+  {recentSignals.length > 0 ? (
+    <div style={styles.table}>
+      {recentSignals.map((signal) => (
+        <div style={styles.row} key={signal.id}>
+          <span>{formatPublicDate(signal.created_at)}</span>
 
-              <span>{signal.confidence}</span>
-              <strong style={styles.result}>{signal.result}</strong>
-            </div>
-          ))}
+          <strong>{signal.instrument || "USOIL"}</strong>
+
+          <span
+            style={
+              signal.direction === "LONG"
+                ? styles.long
+                : styles.short
+            }
+          >
+            {signal.direction}
+          </span>
+
+          <span>{signal.confidence ?? "-"}%</span>
+
+          <strong
+            style={
+              signal.result === "LOSS"
+                ? styles.lossResult
+                : signal.result === "OPEN" || !signal.result
+                ? styles.openResult
+                : styles.result
+            }
+          >
+            {formatPublicResult(signal)}
+          </strong>
         </div>
-      </section>
+      ))}
+    </div>
+  ) : (
+    <div style={styles.emptyPerformance}>
+      <strong>NO VERIFIED SIGNALS YET</strong>
+      <span>
+        Live performance tracking begins with the first accepted WTI
+        signal from 17 AUG 2026.
+      </span>
+    </div>
+  )}
+</section>
 
       <section style={styles.philosophy}>
         <div style={styles.cross}>🃏 <span>CARDS</span> ✕</div>
@@ -586,6 +738,34 @@ display: "inline-block",
     color: "#37f28b",
     textAlign: "right",
   },
+  lossResult: {
+  color: "#ff5c72",
+  textAlign: "right",
+},
+
+openResult: {
+  color: "#f4c95d",
+  textAlign: "right",
+},
+
+performanceStart: {
+  color: "#37f28b",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 1.2,
+  marginBottom: 20,
+},
+
+emptyPerformance: {
+  borderTop: "1px solid #26302c",
+  borderBottom: "1px solid #19221e",
+  padding: "28px 5px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  color: "#78867f",
+  fontSize: 13,
+},
 
   philosophy: {
     maxWidth: 1100,

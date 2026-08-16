@@ -68,7 +68,7 @@ export default function Home() {
             </div>
 
             <h2 style={styles.wti}>WTI / USOIL</h2>
-            <p style={styles.muted}>Crude Oil · 15 minute outlook</p>
+            <p style={styles.muted}>Crude Oil · WTI market signal</p>
           </div>
 
           <div style={styles.direction}>
@@ -210,7 +210,7 @@ export default function Home() {
   features={[
     "Everything in VIP",
     "Rejected Setup Alerts",
-    "Know when NOT to trade",
+    "Direction-conflict warnings",
     "Position Guard",
     "Active-trade news monitoring",
     "Critical WTI event alerts",

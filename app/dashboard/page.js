@@ -766,6 +766,46 @@ const newsExpiresText =
       <span>EXPIRES IN: {newsActive ? newsExpiresText : "-"}</span>
   </div>
 </div>
+
+{isOracle && (
+  <div style={styles.oracleCard}>
+    <div style={styles.oracleTop}>
+      <div>
+        <div style={styles.oracleBadge}>ORACLE ACCESS</div>
+        <h2 style={styles.oracleTitle}>POSITION GUARD ACTIVE</h2>
+      </div>
+
+      <div style={styles.oracleLive}>● ACTIVE</div>
+    </div>
+
+    <p style={styles.oracleText}>
+      Advanced WTI monitoring remains active beyond the initial signal.
+      ORACLE also shows setups that were detected but deliberately rejected.
+    </p>
+
+    <div style={styles.oracleGrid}>
+      <div style={styles.oracleFeature}>
+        <strong>Rejected Setup Alerts</strong>
+        <span>Know when a potential setup is blocked.</span>
+      </div>
+
+      <div style={styles.oracleFeature}>
+        <strong>Position Guard</strong>
+        <span>Active-trade market risk monitoring.</span>
+      </div>
+
+      <div style={styles.oracleFeature}>
+        <strong>Critical Market Alerts</strong>
+        <span>Important WTI market changes while a plan is active.</span>
+      </div>
+
+      <div style={styles.oracleFeature}>
+        <strong>Direction Conflict</strong>
+        <span>Warnings when market conditions turn against the setup.</span>
+      </div>
+    </div>
+  </div>
+)}
         {isVip && (
   <>
     <div style={styles.sectionLabel}>PERFORMANCE</div>
@@ -1218,6 +1258,68 @@ telegramConnected: {
   fontWeight: 900,
   fontSize: 11,
   textAlign: "center",
+},
+  oracleCard: {
+  border: "1px solid #37f28b",
+  background: "#09100d",
+  padding: 28,
+  borderRadius: 10,
+  marginBottom: 45,
+},
+
+oracleTop: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 20,
+  flexWrap: "wrap",
+},
+
+oracleBadge: {
+  color: "#37f28b",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 1.5,
+  marginBottom: 8,
+},
+
+oracleTitle: {
+  margin: 0,
+  fontSize: 25,
+},
+
+oracleLive: {
+  color: "#37f28b",
+  border: "1px solid #23563b",
+  padding: "7px 10px",
+  borderRadius: 5,
+  fontSize: 11,
+  fontWeight: 900,
+},
+
+oracleText: {
+  color: "#89958f",
+  lineHeight: 1.6,
+  maxWidth: 760,
+  margin: "18px 0 24px",
+},
+
+oracleGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))",
+  gap: 12,
+},
+
+oracleFeature: {
+  border: "1px solid #26342e",
+  background: "#050807",
+  padding: 18,
+  borderRadius: 7,
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  color: "#f4f7f5",
+  fontSize: 13,
 },
 performanceGrid: {
   display: "grid",

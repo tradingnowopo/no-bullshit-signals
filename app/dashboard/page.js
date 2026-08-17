@@ -960,7 +960,7 @@ const newsExpiresText =
         ...(historyFilter === filter ? styles.filterButtonActive : {}),
       }}
     >
-      {filter}
+      {filter === "RUNNER" ? "TP2+" : filter}
     </button>
   ))}
 </div>

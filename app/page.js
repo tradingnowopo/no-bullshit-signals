@@ -83,6 +83,7 @@ export default function Home() {
     }
 
     if (signal.result === "BE") return "↔ BREAK EVEN";
+    if (signal.result === "RUNNER") return "🚀 TP2+";
     if (signal.result === "VOID_GAP") return "VOID / GAP";
 
     return String(signal.result).replaceAll("_", " ");

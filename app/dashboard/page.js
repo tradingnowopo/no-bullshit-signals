@@ -247,14 +247,14 @@ async function connectTelegram() {
       signal.direction === "LONG" &&
       signal.max_favorable_price >= signal.tp2 + runnerThreshold
     ) {
-      return "🚀 RUNNER";
+      return "🚀 TP2+";
     }
 
     if (
       signal.direction === "SHORT" &&
       signal.max_favorable_price <= signal.tp2 - runnerThreshold
     ) {
-      return "🚀 RUNNER";
+      return "🚀 TP2+";
     }
 
     return "✅ TP2 HIT";

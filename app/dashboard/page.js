@@ -296,7 +296,7 @@ async function connectTelegram() {
   const winRate =
   completedSignals > 0
     ? Math.round((wins / completedSignals) * 100)
-    : 0;
+    : null;
 
   const hasPaidAccess =
   profile?.subscription_status === "active";
@@ -319,7 +319,7 @@ const isOracle =
   if (historyFilter === "WIN") return signal.result === "WIN";
   if (historyFilter === "LOSS") return signal.result === "LOSS";
   if (historyFilter === "RUNNER") {
-    return getSignalResult(signal) === "🚀 RUNNER";
+    return getSignalResult(signal) === "🚀 TP2+";
   }
 
   return true;
@@ -813,7 +813,9 @@ const newsExpiresText =
     <div style={styles.performanceGrid}>
       <div style={styles.statCard}>
         <div style={styles.label}>WIN RATE</div>
-        <div style={styles.greenBig}>{winRate}%</div>
+        <div style={styles.greenBig}>
+  {winRate === null ? "—" : `${winRate}%`}
+</div>
       </div>
 
       <div style={styles.statCard}>

@@ -18,24 +18,15 @@ export async function GET() {
     return Response.json({
       ok: false,
       stage: "ENV",
-      error: "Missing environment variables",
-      env: {
-        clientId: !!clientId,
-        clientSecret: !!clientSecret,
-        accessToken: !!accessToken,
-        accountId: !!accountId
-      }
+      error: "Missing environment variables"
     });
   }
 
   return new Promise((resolve) => {
+    const ws = new WebSocket(WS_URL);
     let finished = false;
 
-    const ws = new WebSocket(WS_URL, {
-      handshakeTimeout: 10000
-    });
-
-    const finish = (body) => {
+    const finish = (data) => {
       if (finished) return;
       finished = true;
 
@@ -45,12 +36,10 @@ export async function GET() {
         ws.terminate();
       } catch {}
 
-      resolve(
-        Response.json({
-          ...body,
-          log
-        })
-      );
+      resolve(Response.json({
+        ...data,
+        log
+      }));
     };
 
     const timeout = setTimeout(() => {
@@ -63,40 +52,43 @@ export async function GET() {
     ws.on("open", () => {
       log.push("WEBSOCKET_OPEN");
 
-      const message = {
+      const appAuth = JSON.stringify({
         clientMsgId: "nbs_app_auth_" + Date.now(),
         payloadType: 2100,
         payload: {
-          clientId,
-          clientSecret
-        }
-      };
-
-      log.push("SENDING_2100");
-
-      ws.send(JSON.stringify(message), (error) => {
-        if (error) {
-          log.push("SEND_2100_ERROR: " + error.message);
-        } else {
-          log.push("2100_SENT");
+          clientId: clientId,
+          clientSecret: clientSecret
         }
       });
+
+      log.push("ABOUT_TO_SEND_2100");
+
+      try {
+        ws.send(appAuth);
+
+        // Nie czekamy na callback ws.send()
+        log.push("2100_SEND_CALLED");
+      } catch (error) {
+        finish({
+          ok: false,
+          stage: "SEND_2100_EXCEPTION",
+          error: error.message
+        });
+      }
     });
 
     ws.on("message", (data) => {
-      const raw = data.toString();
-
       log.push("MESSAGE_RECEIVED");
 
       let msg;
 
       try {
-        msg = JSON.parse(raw);
-      } catch {
+        msg = JSON.parse(data.toString());
+      } catch (error) {
         finish({
           ok: false,
-          stage: "INVALID_JSON_RESPONSE",
-          raw: raw.slice(0, 500)
+          stage: "INVALID_JSON",
+          raw: data.toString().slice(0, 500)
         });
         return;
       }
@@ -106,24 +98,25 @@ export async function GET() {
       if (msg.payloadType === 2101) {
         log.push("APP_AUTH_OK");
 
-        const accountAuth = {
+        const accountAuth = JSON.stringify({
           clientMsgId: "nbs_account_auth_" + Date.now(),
           payloadType: 2102,
           payload: {
             ctidTraderAccountId: accountId,
-            accessToken
-          }
-        };
-
-        log.push("SENDING_2102");
-
-        ws.send(JSON.stringify(accountAuth), (error) => {
-          if (error) {
-            log.push("SEND_2102_ERROR: " + error.message);
-          } else {
-            log.push("2102_SENT");
+            accessToken: accessToken
           }
         });
+
+        try {
+          ws.send(accountAuth);
+          log.push("2102_SEND_CALLED");
+        } catch (error) {
+          finish({
+            ok: false,
+            stage: "SEND_2102_EXCEPTION",
+            error: error.message
+          });
+        }
 
         return;
       }
@@ -140,36 +133,20 @@ export async function GET() {
         return;
       }
 
-      if (msg.payloadType === 50) {
+      // OA error
+      if (msg.payloadType === 2142 || msg.payloadType === 50) {
         finish({
           ok: false,
           stage: "CTRADER_ERROR",
-          payload: msg.payload || null
+          response: msg
         });
         return;
       }
 
-      log.push(
-        "UNHANDLED_PAYLOAD_" + msg.payloadType
-      );
-    });
-
-    ws.on("unexpected-response", (request, response) => {
-      log.push(
-        "UNEXPECTED_HTTP_RESPONSE_" +
-        response.statusCode
-      );
-
-      finish({
-        ok: false,
-        stage: "WEBSOCKET_HANDSHAKE_REJECTED",
-        statusCode: response.statusCode
-      });
+      log.push("UNHANDLED_" + msg.payloadType);
     });
 
     ws.on("error", (error) => {
-      log.push("WS_ERROR: " + error.message);
-
       finish({
         ok: false,
         stage: "WEBSOCKET_ERROR",
@@ -178,14 +155,10 @@ export async function GET() {
     });
 
     ws.on("close", (code, reason) => {
-      log.push(
-        `WS_CLOSE_${code}_${reason.toString()}`
-      );
-
       if (!finished) {
         finish({
           ok: false,
-          stage: "CONNECTION_CLOSED",
+          stage: "CLOSED",
           code,
           reason: reason.toString()
         });

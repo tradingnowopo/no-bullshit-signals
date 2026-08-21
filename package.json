@@ -1,18 +1,9 @@
-{
-  "name": "no-bullshit-signals",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.55.0",
-    "next": "15.4.10",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
-    "stripe": "^18.5.0"
-  }
+"dependencies": {
+  "@supabase/ssr": "^0.7.0",
+  "@supabase/supabase-js": "^2.55.0",
+  "next": "15.4.10",
+  "react": "19.1.1",
+  "react-dom": "19.1.1",
+  "stripe": "^18.5.0",
+  "ws": "^8.18.3"
 }

@@ -41,7 +41,13 @@ export async function GET(request) {
 
   let traderData = null;
   let symbolData = null;
+
+  let assetsData = [];
   let depositAsset = null;
+  let usdAsset = null;
+
+  let conversionSymbols = null;
+  let conversionRequested = false;
 
   return new Promise((resolve) => {
     const ws = new WebSocket(WS_URL);
@@ -70,14 +76,122 @@ export async function GET(request) {
       );
     };
 
+    // ==================================================
+    // SEND HELPER
+    // ==================================================
+
+    const send = (
+      payloadType,
+      payload,
+      clientMsgId
+    ) => {
+      ws.send(
+        JSON.stringify({
+          clientMsgId,
+          payloadType,
+          payload,
+        })
+      );
+    };
+
+    // ==================================================
+    // REQUEST CONVERSION CHAIN
+    // only when trader + asset list are available
+    // ==================================================
+
+    const requestConversionIfReady = () => {
+      if (
+        conversionRequested ||
+        !traderData ||
+        !Array.isArray(assetsData) ||
+        assetsData.length === 0
+      ) {
+        return;
+      }
+
+      const depositAssetId =
+        traderData.depositAssetId;
+
+      depositAsset =
+        assetsData.find(
+          (a) =>
+            Number(a?.assetId) ===
+            Number(depositAssetId)
+        ) ?? null;
+
+      usdAsset =
+        assetsData.find(
+          (a) =>
+            String(a?.name ?? "")
+              .toUpperCase() === "USD"
+        ) ?? null;
+
+      if (!depositAsset) {
+        finish(
+          {
+            ok: false,
+            stage: "DEPOSIT_ASSET_NOT_FOUND",
+            depositAssetId,
+          },
+          500
+        );
+
+        return;
+      }
+
+      if (!usdAsset) {
+        finish(
+          {
+            ok: false,
+            stage: "USD_ASSET_NOT_FOUND",
+          },
+          500
+        );
+
+        return;
+      }
+
+      conversionRequested = true;
+
+      send(
+        2118,
+        {
+          ctidTraderAccountId: ACCOUNT_ID,
+          firstAssetId: usdAsset.assetId,
+          lastAssetId: depositAsset.assetId,
+        },
+        `NBS_CONVERSION_${Date.now()}`
+      );
+
+      log.push("2118_SEND_CALLED");
+    };
+
+    // ==================================================
+    // FINAL RESPONSE
+    // wait for EVERYTHING
+    // ==================================================
+
     const finishIfReady = () => {
-      if (!traderData || !symbolData || !depositAsset) {
-  return;
-}
+      if (
+        !traderData ||
+        !symbolData ||
+        !depositAsset ||
+        !usdAsset ||
+        !Array.isArray(conversionSymbols)
+      ) {
+        return;
+      }
+
+      const moneyDigits =
+        traderData.moneyDigits ?? 2;
+
+      const accountBalance =
+        Number(traderData.balance) /
+        Math.pow(10, moneyDigits);
 
       finish({
         ok: true,
-        stage: "SYMBOL_AND_ACCOUNT_LOADED",
+        stage: "CONVERSION_CHAIN_LOADED",
 
         environment: "DEMO",
 
@@ -86,25 +200,34 @@ export async function GET(request) {
 
         trader: traderData,
         symbol: symbolData,
+
         depositAsset,
+        usdAsset,
+
+        conversion: {
+          fromAssetId: usdAsset.assetId,
+          fromAsset: usdAsset.name,
+
+          toAssetId: depositAsset.assetId,
+          toAsset: depositAsset.name,
+
+          symbols: conversionSymbols,
+        },
 
         normalized: {
+          accountCurrency:
+            depositAsset.name ?? null,
+
+          accountBalance:
+            Number(accountBalance.toFixed(2)),
+
+          moneyDigits,
+
+          depositAssetId:
+            traderData.depositAssetId ?? null,
+
           symbolId:
             symbolData.symbolId ?? SYMBOL_ID,
-          accountCurrency:
-  depositAsset?.name ??
-  depositAsset?.displayName ??
-  null,
-
-accountBalance:
-  traderData?.balance !== null &&
-  traderData?.balance !== undefined
-    ? traderData.balance /
-      Math.pow(10, traderData.moneyDigits ?? 2)
-    : null,
-
-moneyDigits:
-  traderData?.moneyDigits ?? null,
 
           symbolName:
             symbolData.symbolName ??
@@ -132,39 +255,58 @@ moneyDigits:
           measurementUnits:
             symbolData.measurementUnits ?? null,
 
-          balance:
-            traderData.balance ?? null,
+          conversionFrom: "USD",
 
-          depositAssetId:
-            traderData.depositAssetId ?? null,
+          conversionTo:
+            depositAsset.name ?? null,
+
+          conversionSymbolCount:
+            conversionSymbols.length,
         },
       });
     };
+
+    // ==================================================
+    // TIMEOUT
+    // ==================================================
 
     const timeout = setTimeout(() => {
       finish(
         {
           ok: false,
           stage: "TIMEOUT",
-          error: "cTrader symbol/account request timed out",
+          error:
+            "cTrader symbol/account/conversion request timed out",
+
+          debug: {
+            traderLoaded:
+              traderData !== null,
+
+            symbolLoaded:
+              symbolData !== null,
+
+            assetsLoaded:
+              assetsData.length > 0,
+
+            depositAssetLoaded:
+              depositAsset !== null,
+
+            usdAssetLoaded:
+              usdAsset !== null,
+
+            conversionRequested,
+
+            conversionLoaded:
+              Array.isArray(conversionSymbols),
+          },
         },
         504
       );
     }, 15000);
 
-    const send = (
-      payloadType,
-      payload,
-      clientMsgId
-    ) => {
-      ws.send(
-        JSON.stringify({
-          clientMsgId,
-          payloadType,
-          payload,
-        })
-      );
-    };
+    // ==================================================
+    // WEBSOCKET OPEN
+    // ==================================================
 
     ws.on("open", () => {
       log.push("WEBSOCKET_OPEN");
@@ -175,11 +317,15 @@ moneyDigits:
           clientId,
           clientSecret,
         },
-        `NBS_SYMBOL_APP_AUTH_${Date.now()}`
+        `NBS_APP_AUTH_${Date.now()}`
       );
 
       log.push("2100_SEND_CALLED");
     });
+
+    // ==================================================
+    // MESSAGES
+    // ==================================================
 
     ws.on("message", (data) => {
       let msg;
@@ -191,7 +337,8 @@ moneyDigits:
           {
             ok: false,
             stage: "PARSE",
-            error: "Invalid JSON received from cTrader",
+            error:
+              "Invalid JSON received from cTrader",
           },
           502
         );
@@ -202,7 +349,7 @@ moneyDigits:
       log.push(`PAYLOAD_${msg.payloadType}`);
 
       // ==================================================
-      // APP AUTH
+      // APP AUTH OK
       // ==================================================
 
       if (msg.payloadType === 2101) {
@@ -214,7 +361,7 @@ moneyDigits:
             ctidTraderAccountId: ACCOUNT_ID,
             accessToken,
           },
-          `NBS_SYMBOL_ACCOUNT_AUTH_${Date.now()}`
+          `NBS_ACCOUNT_AUTH_${Date.now()}`
         );
 
         log.push("2102_SEND_CALLED");
@@ -222,50 +369,51 @@ moneyDigits:
       }
 
       // ==================================================
-      // ACCOUNT AUTH
+      // ACCOUNT AUTH OK
       // ==================================================
 
       if (msg.payloadType === 2103) {
-  log.push("ACCOUNT_AUTH_OK");
+        log.push("ACCOUNT_AUTH_OK");
 
-  // 1. Trader/account info
-  send(
-    2121,
-    {
-      ctidTraderAccountId: ACCOUNT_ID,
-    },
-    `NBS_TRADER_${Date.now()}`
-  );
+        // Trader/account
+        send(
+          2121,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
+          },
+          `NBS_TRADER_${Date.now()}`
+        );
 
-  log.push("2121_SEND_CALLED");
+        log.push("2121_SEND_CALLED");
 
-  // 2. Asset list
-  send(
-    2112,
-    {
-      ctidTraderAccountId: ACCOUNT_ID,
-    },
-    `NBS_ASSETS_${Date.now()}`
-  );
+        // Assets
+        send(
+          2112,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
+          },
+          `NBS_ASSETS_${Date.now()}`
+        );
 
-  log.push("2112_SEND_CALLED");
+        log.push("2112_SEND_CALLED");
 
-  // 3. Full SpotCrude symbol specification
-  send(
-    2116,
-    {
-      ctidTraderAccountId: ACCOUNT_ID,
-      symbolId: [SYMBOL_ID],
-    },
-    `NBS_SYMBOL_BY_ID_${Date.now()}`
-  );
+        // SpotCrude full symbol
+        send(
+          2116,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
+            symbolId: [SYMBOL_ID],
+          },
+          `NBS_SYMBOL_${Date.now()}`
+        );
 
-  log.push("2116_SEND_CALLED");
+        log.push("2116_SEND_CALLED");
 
-  return;
-}
+        return;
+      }
+
       // ==================================================
-      // TRADER / ACCOUNT RESPONSE
+      // TRADER RESPONSE
       // ==================================================
 
       if (msg.payloadType === 2122) {
@@ -276,34 +424,39 @@ moneyDigits:
 
         log.push("TRADER_DATA_LOADED");
 
+        requestConversionIfReady();
         finishIfReady();
+
+        return;
+      }
+
+      // ==================================================
+      // ASSET LIST RESPONSE
+      // ==================================================
+
+      if (msg.payloadType === 2113) {
+        const assets =
+          msg.payload?.asset ??
+          msg.payload?.assets ??
+          [];
+
+        assetsData =
+          Array.isArray(assets)
+            ? assets
+            : [];
+
+        log.push("ASSET_DATA_LOADED");
+
+        requestConversionIfReady();
+        finishIfReady();
+
         return;
       }
 
       // ==================================================
       // FULL SYMBOL RESPONSE
       // ==================================================
-    if (msg.payloadType === 2113) {
-  const assets =
-    msg.payload?.asset ??
-    msg.payload?.assets ??
-    [];
 
-  const depositAssetId =
-    traderData?.depositAssetId ?? 6;
-
-  depositAsset =
-    Array.isArray(assets)
-      ? assets.find(
-          a => Number(a?.assetId) === Number(depositAssetId)
-        ) ?? null
-      : null;
-
-  log.push("ASSET_DATA_LOADED");
-
-  finishIfReady();
-  return;
-}
       if (msg.payloadType === 2117) {
         const symbols =
           msg.payload?.symbol ??
@@ -314,12 +467,14 @@ moneyDigits:
           symbolData =
             symbols.find(
               (s) =>
-                Number(s?.symbolId) === SYMBOL_ID
+                Number(s?.symbolId) ===
+                SYMBOL_ID
             ) ??
             symbols[0] ??
             null;
         } else {
-          symbolData = symbols || null;
+          symbolData =
+            symbols || null;
         }
 
         if (!symbolData) {
@@ -336,6 +491,31 @@ moneyDigits:
         }
 
         log.push("SYMBOL_DATA_LOADED");
+
+        finishIfReady();
+        return;
+      }
+
+      // ==================================================
+      // CONVERSION CHAIN RESPONSE
+      // ==================================================
+
+      if (msg.payloadType === 2119) {
+        const symbols =
+          msg.payload?.symbol ??
+          msg.payload?.symbols ??
+          [];
+
+        conversionSymbols =
+          Array.isArray(symbols)
+            ? symbols
+            : [];
+
+        log.push("CONVERSION_CHAIN_LOADED");
+
+        log.push(
+          `CONVERSION_SYMBOLS_${conversionSymbols.length}`
+        );
 
         finishIfReady();
         return;
@@ -368,6 +548,10 @@ moneyDigits:
         return;
       }
     });
+
+    // ==================================================
+    // WEBSOCKET ERROR
+    // ==================================================
 
     ws.on("error", (err) => {
       finish(

@@ -235,25 +235,79 @@ if (validateOnly) {
         return;
       }
 
-      if (msg.payloadType === 2103) {
-        log.push("ACCOUNT_AUTH_OK");
+     if (msg.payloadType === 2103) {
+  log.push("ACCOUNT_AUTH_OK");
 
-        send(
-          2106,
-          {
-            ctidTraderAccountId: ACCOUNT_ID,
-            symbolId: SYMBOL_ID,
-            orderType: 1,
-            tradeSide,
-            volume,
-            label: "NBS_DEMO",
-          },
-          `NBS_ORDER_${Date.now()}`
-        );
+  send(
+    2124,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+    },
+    `NBS_POSITIONS_${Date.now()}`
+  );
 
-        log.push("2106_SEND_CALLED");
-        return;
-      }
+  log.push("2124_SEND_CALLED");
+  return;
+}
+
+if (msg.payloadType === 2125) {
+  const positions = msg.payload?.position || [];
+
+  const openSpotCrude = positions.filter((p) =>
+    p?.tradeData?.symbolId === SYMBOL_ID &&
+    p?.positionStatus === 1 &&
+    Number(p?.tradeData?.volume || 0) > 0
+  );
+
+  if (openSpotCrude.length > 0) {
+    log.push("DUPLICATE_BLOCKED");
+
+    finish(
+      {
+        ok: false,
+        stage: "DUPLICATE_BLOCKED",
+        environment: "DEMO",
+        accountId: ACCOUNT_ID,
+        symbol: SYMBOL_NAME,
+        symbolId: SYMBOL_ID,
+        existingPositions: openSpotCrude.map((p) => ({
+          positionId: p.positionId,
+          direction:
+            p.tradeData?.tradeSide === 1
+              ? "LONG"
+              : p.tradeData?.tradeSide === 2
+              ? "SHORT"
+              : "UNKNOWN",
+          volume: p.tradeData?.volume ?? null,
+          entryPrice: p.price ?? null,
+          label: p.tradeData?.label ?? null,
+        })),
+        orderWouldBeSent: false,
+      },
+      409
+    );
+
+    return;
+  }
+
+  log.push("NO_OPEN_SPOTCRUDE_POSITION");
+
+  send(
+    2106,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+      symbolId: SYMBOL_ID,
+      orderType: 1,
+      tradeSide,
+      volume,
+      label: "NBS_DEMO",
+    },
+    `NBS_ORDER_${Date.now()}`
+  );
+
+  log.push("2106_SEND_CALLED");
+  return;
+}
 
       if (msg.payloadType === 2126) {
         const p = msg.payload || {};

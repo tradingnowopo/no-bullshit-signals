@@ -39,6 +39,9 @@ export async function GET(request) {
     );
   }
 
+  let traderData = null;
+  let symbolData = null;
+
   return new Promise((resolve) => {
     const ws = new WebSocket(WS_URL);
 
@@ -47,8 +50,8 @@ export async function GET(request) {
 
     const finish = (data, status = 200) => {
       if (finished) return;
-      finished = true;
 
+      finished = true;
       clearTimeout(timeout);
 
       try {
@@ -66,18 +69,78 @@ export async function GET(request) {
       );
     };
 
+    const finishIfReady = () => {
+      if (!traderData || !symbolData) {
+        return;
+      }
+
+      finish({
+        ok: true,
+        stage: "SYMBOL_AND_ACCOUNT_LOADED",
+
+        environment: "DEMO",
+
+        accountId: ACCOUNT_ID,
+        symbolId: SYMBOL_ID,
+
+        trader: traderData,
+        symbol: symbolData,
+
+        normalized: {
+          symbolId:
+            symbolData.symbolId ?? SYMBOL_ID,
+
+          symbolName:
+            symbolData.symbolName ??
+            symbolData.name ??
+            null,
+
+          lotSize:
+            symbolData.lotSize ?? null,
+
+          minVolume:
+            symbolData.minVolume ?? null,
+
+          maxVolume:
+            symbolData.maxVolume ?? null,
+
+          stepVolume:
+            symbolData.stepVolume ?? null,
+
+          digits:
+            symbolData.digits ?? null,
+
+          pipPosition:
+            symbolData.pipPosition ?? null,
+
+          measurementUnits:
+            symbolData.measurementUnits ?? null,
+
+          balance:
+            traderData.balance ?? null,
+
+          depositAssetId:
+            traderData.depositAssetId ?? null,
+        },
+      });
+    };
+
     const timeout = setTimeout(() => {
       finish(
         {
           ok: false,
           stage: "TIMEOUT",
-          error: "cTrader symbol request timed out",
+          error: "cTrader symbol/account request timed out",
         },
         504
       );
     }, 15000);
 
-    const send = (payloadType, payload, clientMsgId) => {
+    const send = (
+      payloadType,
+      payload,
+      clientMsgId
+    ) => {
       ws.send(
         JSON.stringify({
           clientMsgId,
@@ -116,12 +179,16 @@ export async function GET(request) {
           },
           502
         );
+
         return;
       }
 
       log.push(`PAYLOAD_${msg.payloadType}`);
 
-      // Application authenticated
+      // ==================================================
+      // APP AUTH
+      // ==================================================
+
       if (msg.payloadType === 2101) {
         log.push("APP_AUTH_OK");
 
@@ -138,235 +205,121 @@ export async function GET(request) {
         return;
       }
 
-      // Account authenticated
-if (msg.payloadType === 2103) {
-  log.push("ACCOUNT_AUTH_OK");
+      // ==================================================
+      // ACCOUNT AUTH
+      // ==================================================
 
-  // 1. Get account/trader information
-  send(
-    2121,
-    {
-      ctidTraderAccountId: ACCOUNT_ID,
-    },
-    `NBS_TRADER_${Date.now()}`
-  );
+      if (msg.payloadType === 2103) {
+        log.push("ACCOUNT_AUTH_OK");
 
-  log.push("2121_SEND_CALLED");
-
-  // 2. Get full SpotCrude symbol specification
-  send(
-    2116,
-    {
-      ctidTraderAccountId: ACCOUNT_ID,
-      symbolId: [SYMBOL_ID],
-    },
-    `NBS_SYMBOL_BY_ID_${Date.now()}`
-  );
-
-  log.push("2116_SEND_CALLED");
-  return;
-}
-
-      // Symbol response
-    if (msg.payloadType === 2122) {
-  traderData =
-    msg.payload?.trader ??
-    msg.payload ??
-    null;
-
-  log.push("TRADER_DATA_LOADED");
-
-  if (traderData && symbolData) {
-    finish({
-      ok: true,
-      stage: "SYMBOL_AND_ACCOUNT_LOADED",
-
-      environment: "DEMO",
-      accountId: ACCOUNT_ID,
-      symbolId: SYMBOL_ID,
-
-      trader: traderData,
-      symbol: symbolData,
-
-      normalized: {
-        symbolId:
-          symbolData.symbolId ?? SYMBOL_ID,
-
-        lotSize:
-          symbolData.lotSize ?? null,
-
-        minVolume:
-          symbolData.minVolume ?? null,
-
-        maxVolume:
-          symbolData.maxVolume ?? null,
-
-        stepVolume:
-          symbolData.stepVolume ?? null,
-
-        digits:
-          symbolData.digits ?? null,
-
-        pipPosition:
-          symbolData.pipPosition ?? null,
-
-        measurementUnits:
-          symbolData.measurementUnits ?? null,
-
-        balance:
-          traderData.balance ?? null,
-
-        depositAssetId:
-          traderData.depositAssetId ?? null
-      }
-    });
-  }
-
-  return;
-}
-
-
-// ==================================================
-// FULL SYMBOL RESPONSE
-// ==================================================
-
-if (msg.payloadType === 2117) {
-
-  const symbols =
-    msg.payload?.symbol ??
-    msg.payload?.symbols ??
-    [];
-
-  symbolData =
-    Array.isArray(symbols)
-      ? symbols.find(
-          s => Number(s?.symbolId) === SYMBOL_ID
-        ) ?? symbols[0]
-      : symbols;
-
-  if (!symbolData) {
-    finish(
-      {
-        ok: false,
-        stage: "SYMBOL_NOT_FOUND",
-        symbolId: SYMBOL_ID
-      },
-      404
-    );
-
-    return;
-  }
-
-  log.push("SYMBOL_DATA_LOADED");
-
-  if (traderData && symbolData) {
-    finish({
-      ok: true,
-      stage: "SYMBOL_AND_ACCOUNT_LOADED",
-
-      environment: "DEMO",
-      accountId: ACCOUNT_ID,
-      symbolId: SYMBOL_ID,
-
-      trader: traderData,
-      symbol: symbolData,
-
-      normalized: {
-        symbolId:
-          symbolData.symbolId ?? SYMBOL_ID,
-
-        lotSize:
-          symbolData.lotSize ?? null,
-
-        minVolume:
-          symbolData.minVolume ?? null,
-
-        maxVolume:
-          symbolData.maxVolume ?? null,
-
-        stepVolume:
-          symbolData.stepVolume ?? null,
-
-        digits:
-          symbolData.digits ?? null,
-
-        pipPosition:
-          symbolData.pipPosition ?? null,
-
-        measurementUnits:
-          symbolData.measurementUnits ?? null,
-
-        balance:
-          traderData.balance ?? null,
-
-        depositAssetId:
-          traderData.depositAssetId ?? null
-      }
-    });
-  }
-
-  return;
-}
-
-        finish({
-          ok: true,
-          stage: "SYMBOL_LOADED",
-          environment: "DEMO",
-          accountId: ACCOUNT_ID,
-          symbolId: SYMBOL_ID,
-
-          symbol: symbolData,
-
-          normalized: {
-            symbolId: symbolData.symbolId ?? SYMBOL_ID,
-            symbolName:
-              symbolData.symbolName ??
-              symbolData.name ??
-              null,
-
-            lotSize:
-              symbolData.lotSize ??
-              null,
-
-            minVolume:
-              symbolData.minVolume ??
-              null,
-
-            maxVolume:
-              symbolData.maxVolume ??
-              null,
-
-            stepVolume:
-              symbolData.stepVolume ??
-              null,
-
-            digits:
-              symbolData.digits ??
-              null,
-
-            pipPosition:
-              symbolData.pipPosition ??
-              null,
+        // Trader/account info
+        send(
+          2121,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
           },
-        });
+          `NBS_TRADER_${Date.now()}`
+        );
+
+        log.push("2121_SEND_CALLED");
+
+        // Full SpotCrude symbol specification
+        send(
+          2116,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
+            symbolId: [SYMBOL_ID],
+          },
+          `NBS_SYMBOL_BY_ID_${Date.now()}`
+        );
+
+        log.push("2116_SEND_CALLED");
 
         return;
       }
 
-      if (msg.payloadType === 2142 || msg.payload?.errorCode) {
+      // ==================================================
+      // TRADER / ACCOUNT RESPONSE
+      // ==================================================
+
+      if (msg.payloadType === 2122) {
+        traderData =
+          msg.payload?.trader ??
+          msg.payload ??
+          null;
+
+        log.push("TRADER_DATA_LOADED");
+
+        finishIfReady();
+        return;
+      }
+
+      // ==================================================
+      // FULL SYMBOL RESPONSE
+      // ==================================================
+
+      if (msg.payloadType === 2117) {
+        const symbols =
+          msg.payload?.symbol ??
+          msg.payload?.symbols ??
+          [];
+
+        if (Array.isArray(symbols)) {
+          symbolData =
+            symbols.find(
+              (s) =>
+                Number(s?.symbolId) === SYMBOL_ID
+            ) ??
+            symbols[0] ??
+            null;
+        } else {
+          symbolData = symbols || null;
+        }
+
+        if (!symbolData) {
+          finish(
+            {
+              ok: false,
+              stage: "SYMBOL_NOT_FOUND",
+              symbolId: SYMBOL_ID,
+            },
+            404
+          );
+
+          return;
+        }
+
+        log.push("SYMBOL_DATA_LOADED");
+
+        finishIfReady();
+        return;
+      }
+
+      // ==================================================
+      // CTRADER ERROR
+      // ==================================================
+
+      if (
+        msg.payloadType === 2142 ||
+        msg.payload?.errorCode
+      ) {
         finish(
           {
             ok: false,
             stage: "CTRADER_ERROR",
+
             errorCode:
               msg.payload?.errorCode ??
               "CTRADER_ERROR",
+
             error:
               msg.payload?.description ??
               "Unknown cTrader error",
           },
           502
         );
+
+        return;
       }
     });
 

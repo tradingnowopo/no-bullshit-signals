@@ -109,6 +109,7 @@ export async function POST(request) {
 
   const tradeSide = direction === "LONG" ? 1 : 2;
   const validateOnly = body?.validateOnly === true;
+  const preflightOnly = body?.preflightOnly === true;
 
 if (validateOnly) {
   return Response.json({
@@ -291,6 +292,25 @@ if (msg.payloadType === 2125) {
   }
 
   log.push("NO_OPEN_SPOTCRUDE_POSITION");
+  if (preflightOnly) {
+  log.push("PREFLIGHT_OK");
+
+  finish({
+    ok: true,
+    stage: "PREFLIGHT_OK",
+    environment: "DEMO",
+    accountId: ACCOUNT_ID,
+    symbol: SYMBOL_NAME,
+    symbolId: SYMBOL_ID,
+    direction,
+    tradeSide,
+    volume,
+    openSpotCrudeCount: 0,
+    orderWouldBeSent: false,
+  });
+
+  return;
+}
 
   send(
     2106,

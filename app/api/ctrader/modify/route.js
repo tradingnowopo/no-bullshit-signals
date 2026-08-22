@@ -11,6 +11,19 @@ const SYMBOL_ID = 250;
 const SYMBOL_NAME = "SpotCrude";
 
 export async function POST(request) {
+    const executorKey = process.env.NBS_EXECUTOR_KEY;
+  const providedKey = request.headers.get("x-nbs-executor-key");
+
+  if (!executorKey || providedKey !== executorKey) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "AUTH",
+        error: "Unauthorized executor request",
+      },
+      { status: 401 }
+    );
+  }
   const clientId = process.env.CTRADER_CLIENT_ID;
   const clientSecret = process.env.CTRADER_CLIENT_SECRET;
   const accessToken = process.env.CTRADER_ACCESS_TOKEN;

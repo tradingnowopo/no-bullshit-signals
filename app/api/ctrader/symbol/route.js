@@ -156,7 +156,7 @@ log.push("2116_SEND_CALLED");
       }
 
       // Symbol response
-      if (msg.payloadType === 2115) {
+    if (msg.payloadType === 2117) {
         const symbols =
           msg.payload?.symbol ??
           msg.payload?.symbols ??

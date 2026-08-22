@@ -108,6 +108,34 @@ export async function POST(request) {
   }
 
   const tradeSide = direction === "LONG" ? 1 : 2;
+  const validateOnly = body?.validateOnly === true;
+
+if (validateOnly) {
+  return Response.json({
+    ok: true,
+    stage: "VALIDATION_OK",
+    validateOnly: true,
+    environment: "DEMO",
+
+    accountId: ACCOUNT_ID,
+
+    symbol: SYMBOL_NAME,
+    symbolId: SYMBOL_ID,
+
+    direction,
+    tradeSide,
+    volume,
+
+    signalPlan: {
+      entry: Number.isFinite(entry) ? entry : null,
+      sl: Number.isFinite(sl) ? sl : null,
+      tp1: Number.isFinite(tp1) ? tp1 : null,
+      tp2: Number.isFinite(tp2) ? tp2 : null,
+    },
+
+    orderWouldBeSent: false,
+  });
+}
 
   const log = [];
 

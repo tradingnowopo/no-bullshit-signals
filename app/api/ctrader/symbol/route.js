@@ -168,27 +168,145 @@ if (msg.payloadType === 2103) {
 }
 
       // Symbol response
-    if (msg.payloadType === 2117) {
-        const symbols =
-          msg.payload?.symbol ??
-          msg.payload?.symbols ??
-          [];
+    if (msg.payloadType === 2122) {
+  traderData =
+    msg.payload?.trader ??
+    msg.payload ??
+    null;
 
-        const symbolData = Array.isArray(symbols)
-          ? symbols[0]
-          : symbols;
+  log.push("TRADER_DATA_LOADED");
 
-        if (!symbolData) {
-          finish(
-            {
-              ok: false,
-              stage: "SYMBOL_NOT_FOUND",
-              symbolId: SYMBOL_ID,
-            },
-            404
-          );
-          return;
-        }
+  if (traderData && symbolData) {
+    finish({
+      ok: true,
+      stage: "SYMBOL_AND_ACCOUNT_LOADED",
+
+      environment: "DEMO",
+      accountId: ACCOUNT_ID,
+      symbolId: SYMBOL_ID,
+
+      trader: traderData,
+      symbol: symbolData,
+
+      normalized: {
+        symbolId:
+          symbolData.symbolId ?? SYMBOL_ID,
+
+        lotSize:
+          symbolData.lotSize ?? null,
+
+        minVolume:
+          symbolData.minVolume ?? null,
+
+        maxVolume:
+          symbolData.maxVolume ?? null,
+
+        stepVolume:
+          symbolData.stepVolume ?? null,
+
+        digits:
+          symbolData.digits ?? null,
+
+        pipPosition:
+          symbolData.pipPosition ?? null,
+
+        measurementUnits:
+          symbolData.measurementUnits ?? null,
+
+        balance:
+          traderData.balance ?? null,
+
+        depositAssetId:
+          traderData.depositAssetId ?? null
+      }
+    });
+  }
+
+  return;
+}
+
+
+// ==================================================
+// FULL SYMBOL RESPONSE
+// ==================================================
+
+if (msg.payloadType === 2117) {
+
+  const symbols =
+    msg.payload?.symbol ??
+    msg.payload?.symbols ??
+    [];
+
+  symbolData =
+    Array.isArray(symbols)
+      ? symbols.find(
+          s => Number(s?.symbolId) === SYMBOL_ID
+        ) ?? symbols[0]
+      : symbols;
+
+  if (!symbolData) {
+    finish(
+      {
+        ok: false,
+        stage: "SYMBOL_NOT_FOUND",
+        symbolId: SYMBOL_ID
+      },
+      404
+    );
+
+    return;
+  }
+
+  log.push("SYMBOL_DATA_LOADED");
+
+  if (traderData && symbolData) {
+    finish({
+      ok: true,
+      stage: "SYMBOL_AND_ACCOUNT_LOADED",
+
+      environment: "DEMO",
+      accountId: ACCOUNT_ID,
+      symbolId: SYMBOL_ID,
+
+      trader: traderData,
+      symbol: symbolData,
+
+      normalized: {
+        symbolId:
+          symbolData.symbolId ?? SYMBOL_ID,
+
+        lotSize:
+          symbolData.lotSize ?? null,
+
+        minVolume:
+          symbolData.minVolume ?? null,
+
+        maxVolume:
+          symbolData.maxVolume ?? null,
+
+        stepVolume:
+          symbolData.stepVolume ?? null,
+
+        digits:
+          symbolData.digits ?? null,
+
+        pipPosition:
+          symbolData.pipPosition ?? null,
+
+        measurementUnits:
+          symbolData.measurementUnits ?? null,
+
+        balance:
+          traderData.balance ?? null,
+
+        depositAssetId:
+          traderData.depositAssetId ?? null
+      }
+    });
+  }
+
+  return;
+}
 
         finish({
           ok: true,

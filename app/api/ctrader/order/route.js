@@ -289,16 +289,29 @@ async function updateExecution(status, fields = {}) {
       );
     };
 
-    const timeout = setTimeout(() => {
-      finish(
-        {
-          ok: false,
-          stage: "TIMEOUT",
-          error: "cTrader request timed out",
-        },
-        504
-      );
-    }, 15000);
+    const timeout = setTimeout(async () => {
+  if (!preflightOnly) {
+    try {
+      await updateExecution("TIMEOUT", {
+        error_code: "TIMEOUT",
+        error_message: "cTrader request timed out",
+      });
+      log.push("EXECUTION_DB_TIMEOUT_UPDATED");
+    } catch (err) {
+      log.push("EXECUTION_DB_UPDATE_FAILED");
+      console.error(err);
+    }
+  }
+
+  finish(
+    {
+      ok: false,
+      stage: "TIMEOUT",
+      error: "cTrader request timed out",
+    },
+    504
+  );
+}, 15000);
 
     const send = (payloadType, payload, clientMsgId) => {
       ws.send(
@@ -386,6 +399,19 @@ if (msg.payloadType === 2125) {
 
   if (openSpotCrude.length > 0) {
     log.push("DUPLICATE_BLOCKED");
+      if (!preflightOnly) {
+  try {
+    await updateExecution("DUPLICATE_POSITION", {
+      error_code: "DUPLICATE_POSITION",
+      error_message: "An open SpotCrude position already exists",
+    });
+
+    log.push("EXECUTION_DB_DUPLICATE_UPDATED");
+  } catch (err) {
+    log.push("EXECUTION_DB_UPDATE_FAILED");
+    console.error(err);
+  }
+}
 
     finish(
       {
@@ -538,17 +564,42 @@ if (msg.payloadType === 2125) {
         }
       }
 
-      if (msg.payloadType === 2142 || msg.payload?.errorCode) {
-        finish(
-          {
-            ok: false,
-            stage: "CTRADER_ERROR",
-            errorCode: msg.payload?.errorCode ?? null,
-            error: msg.payload?.description ?? "Unknown cTrader error",
-          },
-          502
-        );
-      }
+   if (msg.payloadType === 2142 || msg.payload?.errorCode) {
+  const errorCode = msg.payload?.errorCode ?? "CTRADER_ERROR";
+  const errorMessage =
+    msg.payload?.description ?? "Unknown cTrader error";
+
+  const executionStatus =
+    errorCode === "MARKET_CLOSED"
+      ? "MARKET_CLOSED"
+      : "CTRADER_ERROR";
+
+  if (!preflightOnly) {
+    try {
+      await updateExecution(executionStatus, {
+        error_code: errorCode,
+        error_message: errorMessage,
+      });
+
+      log.push(`EXECUTION_DB_${executionStatus}_UPDATED`);
+    } catch (err) {
+      log.push("EXECUTION_DB_UPDATE_FAILED");
+      console.error(err);
+    }
+  }
+
+  finish(
+    {
+      ok: false,
+      stage: executionStatus,
+      errorCode,
+      error: errorMessage,
+    },
+    502
+  );
+
+  return;
+}
     });
 
     ws.on("error", (err) => {

@@ -139,21 +139,33 @@ export async function GET(request) {
       }
 
       // Account authenticated
-      if (msg.payloadType === 2103) {
-        log.push("ACCOUNT_AUTH_OK");
+if (msg.payloadType === 2103) {
+  log.push("ACCOUNT_AUTH_OK");
 
-        send(
-  2116,
-  {
-    ctidTraderAccountId: ACCOUNT_ID,
-    symbolId: [SYMBOL_ID],
-  },
-  `NBS_SYMBOL_BY_ID_${Date.now()}`
-);
+  // 1. Get account/trader information
+  send(
+    2121,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+    },
+    `NBS_TRADER_${Date.now()}`
+  );
 
-log.push("2116_SEND_CALLED");
-        return;
-      }
+  log.push("2121_SEND_CALLED");
+
+  // 2. Get full SpotCrude symbol specification
+  send(
+    2116,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+      symbolId: [SYMBOL_ID],
+    },
+    `NBS_SYMBOL_BY_ID_${Date.now()}`
+  );
+
+  log.push("2116_SEND_CALLED");
+  return;
+}
 
       // Symbol response
     if (msg.payloadType === 2117) {

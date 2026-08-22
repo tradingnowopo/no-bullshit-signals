@@ -237,7 +237,30 @@ if (!preflightOnly) {
   }
 }
 
+async function updateExecution(status, fields = {}) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/ctrader_signal_executions?signal_id=eq.${encodeURIComponent(signalId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        status,
+        updated_at: new Date().toISOString(),
+        ...fields,
+      }),
+    }
+  );
 
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`EXECUTION_UPDATE_FAILED: ${errorText}`);
+  }
+}
 
   const log = [];
 
@@ -302,7 +325,7 @@ if (!preflightOnly) {
       log.push("2100_SEND_CALLED");
     });
 
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       let msg;
 
       try {
@@ -448,6 +471,29 @@ if (msg.payloadType === 2125) {
 
         if (p.executionType === 3 && p.deal) {
           log.push("ORDER_FILLED");
+            try {
+  await updateExecution("ORDER_FILLED", {
+    position_id: p.position?.positionId ?? null,
+    order_id: p.order?.orderId ?? null,
+    deal_id: p.deal?.dealId ?? null,
+    execution_price:
+      p.deal?.executionPrice ??
+      p.order?.executionPrice ??
+      p.position?.price ??
+      null,
+    executed_volume:
+      p.deal?.filledVolume ??
+      p.order?.executedVolume ??
+      null,
+    error_code: null,
+    error_message: null,
+  });
+
+  log.push("EXECUTION_DB_UPDATED");
+} catch (err) {
+  log.push("EXECUTION_DB_UPDATE_FAILED");
+  console.error(err);
+}
 
           finish({
             ok: true,

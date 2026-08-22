@@ -123,16 +123,50 @@ export async function GET() {
       }
 
       if (msg.payloadType === 2103) {
-        log.push("ACCOUNT_AUTH_OK");
+  log.push("ACCOUNT_AUTH_OK");
 
-        finish({
-          ok: true,
-          stage: "ACCOUNT_AUTH_OK",
-          accountId
-        });
+  const subscribe = JSON.stringify({
+    clientMsgId: "nbs_spotcrude_" + Date.now(),
+    payloadType: 2127,
+    payload: {
+      ctidTraderAccountId: accountId,
+      symbolId: [250]
+    }
+  });
 
-        return;
-      }
+  ws.send(subscribe);
+  log.push("2127_SEND_CALLED");
+  return;
+}
+
+if (msg.payloadType === 2131) {
+  if (msg.payload?.symbolId !== 250) return;
+
+  const bid =
+    msg.payload.bid != null
+      ? Number(msg.payload.bid) / 100000
+      : null;
+
+  const ask =
+    msg.payload.ask != null
+      ? Number(msg.payload.ask) / 100000
+      : null;
+
+  if (bid == null || ask == null) return;
+
+  finish({
+    ok: true,
+    stage: "PRICE_OK",
+    accountId,
+    symbol: "SpotCrude",
+    symbolId: 250,
+    bid,
+    ask,
+    spread: Number((ask - bid).toFixed(3))
+  });
+
+  return;
+}
 
       // OA error
       if (msg.payloadType === 2142 || msg.payloadType === 50) {

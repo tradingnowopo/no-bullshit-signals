@@ -6,159 +6,70 @@ export const maxDuration = 30;
 
 const WS_URL = "wss://demo.ctraderapi.com:5036";
 
+const MAX_CONNECT_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1500;
+const ATTEMPT_TIMEOUT_MS = 8000;
+
 const ACCOUNT_ID = 48342468;
 const SPOTCRUDE_SYMBOL_ID = 250;
-
-// --------------------------------------------------
-// DEFAULT RISK SETTINGS
-// Can be overridden by query params:
-// ?entry=84.47&sl=84.343&riskPercent=1&hardCapGBP=10
-// --------------------------------------------------
 
 const DEFAULT_RISK_PERCENT = 1.0;
 const DEFAULT_HARD_CAP_GBP = 10.0;
 
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 
 // ==================================================
-// GET
+// ONE CTRADER CONNECTION ATTEMPT
 // ==================================================
 
-export async function GET(request) {
-  const executorKey = process.env.NBS_EXECUTOR_KEY;
-  const providedKey =
-    request.headers.get("x-nbs-executor-key");
-
-  if (
-    !executorKey ||
-    providedKey !== executorKey
-  ) {
-    return Response.json(
-      {
-        ok: false,
-        stage: "AUTH",
-        error: "Unauthorized executor request",
-      },
-      { status: 401 }
-    );
-  }
-
-  const clientId =
-    process.env.CTRADER_CLIENT_ID;
-
-  const clientSecret =
-    process.env.CTRADER_CLIENT_SECRET;
-
-  const accessToken =
-    process.env.CTRADER_ACCESS_TOKEN;
-
-  if (
-    !clientId ||
-    !clientSecret ||
-    !accessToken
-  ) {
-    return Response.json(
-      {
-        ok: false,
-        stage: "ENV",
-        error:
-          "Missing cTrader environment variables",
-      },
-      { status: 500 }
-    );
-  }
-
-
-  // ==================================================
-  // QUERY PARAMS
-  // ==================================================
-
-  const url = new URL(request.url);
-
-  const entry = Number(
-    url.searchParams.get("entry")
-  );
-
-  const sl = Number(
-    url.searchParams.get("sl")
-  );
-
-  const riskPercentRaw = Number(
-    url.searchParams.get("riskPercent")
-  );
-
-  const hardCapGBPRaw = Number(
-    url.searchParams.get("hardCapGBP")
-  );
-
-  const riskPercent =
-    Number.isFinite(riskPercentRaw) &&
-    riskPercentRaw > 0
-      ? riskPercentRaw
-      : DEFAULT_RISK_PERCENT;
-
-  const hardCapGBP =
-    Number.isFinite(hardCapGBPRaw) &&
-    hardCapGBPRaw > 0
-      ? hardCapGBPRaw
-      : DEFAULT_HARD_CAP_GBP;
-
-  const sizingRequested =
-    Number.isFinite(entry) &&
-    Number.isFinite(sl) &&
-    entry > 0 &&
-    sl > 0 &&
-    entry !== sl;
-
-
-  // ==================================================
-  // RUNTIME STATE
-  // ==================================================
-
-  let traderData = null;
-
-  let spotCrudeSymbol = null;
-
-  let assetsData = [];
-
-  let depositAsset = null;
-  let usdAsset = null;
-
-  let conversionSymbols = null;
-
-  let conversionRequested = false;
-
-  let conversionSymbol = null;
-
-  let conversionSymbolSpec = null;
-
-  let conversionSubscriptionSent = false;
-
-  let conversionBid = null;
-  let conversionAsk = null;
-
-  let conversionTimestamp = null;
-
-
-  // ==================================================
-  // WEBSOCKET
-  // ==================================================
-
+function runCTraderAttempt({
+  clientId,
+  clientSecret,
+  accessToken,
+  entry,
+  sl,
+  riskPercent,
+  hardCapGBP,
+  sizingRequested,
+  attemptNumber,
+}) {
   return new Promise((resolve) => {
     const ws = new WebSocket(WS_URL);
 
     let finished = false;
 
-    const log = [];
+    const log = [
+      `ATTEMPT_${attemptNumber}_START`,
+    ];
+
+    let traderData = null;
+    let spotCrudeSymbol = null;
+
+    let assetsData = [];
+
+    let depositAsset = null;
+    let usdAsset = null;
+
+    let conversionSymbols = null;
+    let conversionRequested = false;
+
+    let conversionSymbol = null;
+    let conversionSymbolSpec = null;
+
+    let conversionSubscriptionSent = false;
+
+    let conversionBid = null;
+    let conversionAsk = null;
+    let conversionTimestamp = null;
 
 
     // ==================================================
-    // FINISH
+    // FINISH ATTEMPT
     // ==================================================
 
-    const finish = (
-      data,
-      status = 200
-    ) => {
+    const finish = (result) => {
       if (finished) return;
 
       finished = true;
@@ -169,15 +80,11 @@ export async function GET(request) {
         ws.terminate();
       } catch {}
 
-      resolve(
-        Response.json(
-          {
-            ...data,
-            log,
-          },
-          { status }
-        )
-      );
+      resolve({
+        ...result,
+        attemptNumber,
+        log,
+      });
     };
 
 
@@ -190,6 +97,20 @@ export async function GET(request) {
       payload,
       clientMsgId
     ) => {
+      if (
+        ws.readyState !==
+        WebSocket.OPEN
+      ) {
+        finish({
+          ok: false,
+          retryable: false,
+          stage: "WEBSOCKET_NOT_OPEN",
+          error: "WebSocket is not open",
+        });
+
+        return;
+      }
+
       ws.send(
         JSON.stringify({
           clientMsgId,
@@ -232,27 +153,24 @@ export async function GET(request) {
         ) ?? null;
 
       if (!depositAsset) {
-        finish(
-          {
-            ok: false,
-            stage:
-              "DEPOSIT_ASSET_NOT_FOUND",
-            depositAssetId,
-          },
-          500
-        );
+        finish({
+          ok: false,
+          retryable: false,
+          stage: "DEPOSIT_ASSET_NOT_FOUND",
+          error: "Deposit asset not found",
+          depositAssetId,
+        });
 
         return;
       }
 
       if (!usdAsset) {
-        finish(
-          {
-            ok: false,
-            stage: "USD_ASSET_NOT_FOUND",
-          },
-          500
-        );
+        finish({
+          ok: false,
+          retryable: false,
+          stage: "USD_ASSET_NOT_FOUND",
+          error: "USD asset not found",
+        });
 
         return;
       }
@@ -281,7 +199,7 @@ export async function GET(request) {
 
 
     // ==================================================
-    // REQUEST FULL SPEC FOR CONVERSION SYMBOL
+    // REQUEST CONVERSION SYMBOL SPEC
     // ==================================================
 
     const requestConversionSymbolSpec =
@@ -315,7 +233,7 @@ export async function GET(request) {
 
 
     // ==================================================
-    // SUBSCRIBE TO LIVE CONVERSION QUOTE
+    // SUBSCRIBE GBPUSD
     // ==================================================
 
     const subscribeConversionQuote =
@@ -327,8 +245,7 @@ export async function GET(request) {
           return;
         }
 
-        conversionSubscriptionSent =
-          true;
+        conversionSubscriptionSent = true;
 
         send(
           2127,
@@ -373,9 +290,9 @@ export async function GET(request) {
       }
 
 
-      // ----------------------------------------------
-      // ACCOUNT BALANCE
-      // ----------------------------------------------
+      // ==================================================
+      // ACCOUNT
+      // ==================================================
 
       const moneyDigits =
         Number(
@@ -390,18 +307,9 @@ export async function GET(request) {
         );
 
 
-      // ----------------------------------------------
+      // ==================================================
       // GBPUSD
-      //
-      // GBPUSD = USD per 1 GBP
-      //
-      // We use BID for conservative sizing:
-      //
-      // riskUSD = riskGBP * GBPUSD_bid
-      //
-      // This avoids slightly exceeding the GBP cap
-      // because of spread.
-      // ----------------------------------------------
+      // ==================================================
 
       const gbpUsdBid =
         conversionBid;
@@ -416,9 +324,9 @@ export async function GET(request) {
         ) / 2;
 
 
-      // ----------------------------------------------
-      // SYMBOL SPEC
-      // ----------------------------------------------
+      // ==================================================
+      // SPOTCRUDE SPEC
+      // ==================================================
 
       const minVolume =
         Number(
@@ -441,22 +349,41 @@ export async function GET(request) {
         );
 
 
+      if (
+        !Number.isFinite(minVolume) ||
+        !Number.isFinite(maxVolume) ||
+        !Number.isFinite(stepVolume) ||
+        !Number.isFinite(lotSize) ||
+        minVolume <= 0 ||
+        maxVolume <= 0 ||
+        stepVolume <= 0 ||
+        lotSize <= 0
+      ) {
+        finish({
+          ok: false,
+          retryable: false,
+          stage: "INVALID_SYMBOL_SPEC",
+          error:
+            "Invalid SpotCrude volume specification",
+        });
+
+        return;
+      }
+
+
       // ==================================================
-      // NO SIZING REQUEST
-      // Just return broker data.
+      // BROKER DATA ONLY
       // ==================================================
 
       if (!sizingRequested) {
         finish({
           ok: true,
+          retryable: false,
 
-          stage:
-            "BROKER_DATA_READY",
+          stage: "BROKER_DATA_READY",
 
           environment: "DEMO",
-
-          accountId:
-            ACCOUNT_ID,
+          accountId: ACCOUNT_ID,
 
           account: {
             currency:
@@ -464,9 +391,7 @@ export async function GET(request) {
 
             balance:
               Number(
-                accountBalanceGBP.toFixed(
-                  2
-                )
+                accountBalanceGBP.toFixed(2)
               ),
 
             moneyDigits,
@@ -477,11 +402,8 @@ export async function GET(request) {
               SPOTCRUDE_SYMBOL_ID,
 
             lotSize,
-
             minVolume,
-
             maxVolume,
-
             stepVolume,
 
             measurementUnits:
@@ -521,11 +443,8 @@ export async function GET(request) {
                 gbpUsdMid.toFixed(5)
               ),
 
-            from:
-              "USD",
-
-            to:
-              "GBP",
+            from: "USD",
+            to: "GBP",
 
             quoteTimestamp:
               conversionTimestamp,
@@ -539,7 +458,7 @@ export async function GET(request) {
 
 
       // ==================================================
-      // POSITION SIZING
+      // STOP DISTANCE
       // ==================================================
 
       const stopDistance =
@@ -548,31 +467,30 @@ export async function GET(request) {
         );
 
       if (
-        !Number.isFinite(
-          stopDistance
-        ) ||
+        !Number.isFinite(stopDistance) ||
         stopDistance <= 0
       ) {
-        finish(
-          {
-            ok: false,
+        finish({
+          ok: false,
+          retryable: false,
 
-            stage:
-              "INVALID_STOP_DISTANCE",
+          stage:
+            "INVALID_STOP_DISTANCE",
 
-            entry,
-            sl,
-          },
-          400
-        );
+          error:
+            "Invalid stop distance",
+
+          entry,
+          sl,
+        });
 
         return;
       }
 
 
-      // ----------------------------------------------
-      // Risk in GBP
-      // ----------------------------------------------
+      // ==================================================
+      // RISK GBP
+      // ==================================================
 
       const percentageRiskGBP =
         accountBalanceGBP *
@@ -587,50 +505,35 @@ export async function GET(request) {
         );
 
 
-      // ----------------------------------------------
-      // GBP -> USD risk budget
-      //
-      // SpotCrude P/L is in USD.
-      // ----------------------------------------------
+      // ==================================================
+      // GBP -> USD
+      // ==================================================
 
       const riskUSD =
         finalRiskGBP *
         gbpUsdBid;
 
 
-      // ----------------------------------------------
-      // Raw barrels
-      //
-      // 1 barrel:
-      // loss = stopDistance USD
-      // ----------------------------------------------
+      // ==================================================
+      // BARRELS
+      // ==================================================
 
       const rawBarrels =
         riskUSD /
         stopDistance;
 
 
-      // ----------------------------------------------
-      // cTrader protocol:
+      // ==================================================
+      // CTRADER PROTOCOL VOLUME
       //
-      // volume is in cents of units.
-      //
-      // 100 protocol volume
-      // = 1 barrel
-      //
-      // ----------------------------------------------
+      // 100 protocol volume = 1 barrel
+      // ==================================================
 
       const rawProtocolVolume =
         rawBarrels * 100;
 
 
-      // ----------------------------------------------
-      // Round DOWN to broker step.
-      //
-      // Never round upward because that
-      // could exceed hard risk cap.
-      // ----------------------------------------------
-
+      // Round DOWN to broker step
       let protocolVolume =
         Math.floor(
           rawProtocolVolume /
@@ -639,63 +542,55 @@ export async function GET(request) {
         stepVolume;
 
 
-      // ----------------------------------------------
-      // Min volume
-      // ----------------------------------------------
+      // ==================================================
+      // MIN VOLUME
+      // ==================================================
 
       if (
         protocolVolume <
         minVolume
       ) {
-        finish(
-          {
-            ok: false,
+        finish({
+          ok: false,
+          retryable: false,
 
-            stage:
-              "RISK_TOO_SMALL_FOR_MIN_VOLUME",
+          stage:
+            "RISK_TOO_SMALL_FOR_MIN_VOLUME",
 
-            risk: {
-              riskPercent,
+          risk: {
+            riskPercent,
 
-              hardCapGBP,
+            hardCapGBP,
 
-              finalRiskGBP:
-                Number(
-                  finalRiskGBP.toFixed(
-                    2
-                  )
-                ),
+            finalRiskGBP:
+              Number(
+                finalRiskGBP.toFixed(2)
+              ),
 
-              minimumVolume:
-                minVolume,
-            },
-
-            sizing: {
-              rawBarrels:
-                Number(
-                  rawBarrels.toFixed(
-                    4
-                  )
-                ),
-
-              rawProtocolVolume:
-                Number(
-                  rawProtocolVolume.toFixed(
-                    2
-                  )
-                ),
-            },
+            minimumVolume:
+              minVolume,
           },
-          400
-        );
+
+          sizing: {
+            rawBarrels:
+              Number(
+                rawBarrels.toFixed(4)
+              ),
+
+            rawProtocolVolume:
+              Number(
+                rawProtocolVolume.toFixed(2)
+              ),
+          },
+        });
 
         return;
       }
 
 
-      // ----------------------------------------------
-      // Max broker volume
-      // ----------------------------------------------
+      // ==================================================
+      // MAX VOLUME
+      // ==================================================
 
       let cappedByMaxVolume =
         false;
@@ -712,9 +607,9 @@ export async function GET(request) {
       }
 
 
-      // ----------------------------------------------
-      // Final units/barrels/lots
-      // ----------------------------------------------
+      // ==================================================
+      // FINAL POSITION
+      // ==================================================
 
       const barrels =
         protocolVolume / 100;
@@ -724,9 +619,9 @@ export async function GET(request) {
         lotSize;
 
 
-      // ----------------------------------------------
-      // Actual risk AFTER rounding
-      // ----------------------------------------------
+      // ==================================================
+      // ACTUAL RISK
+      // ==================================================
 
       const actualRiskUSD =
         barrels *
@@ -737,33 +632,29 @@ export async function GET(request) {
         gbpUsdBid;
 
 
-      // ----------------------------------------------
-      // Safety verification
-      // ----------------------------------------------
+      // ==================================================
+      // HARD SAFETY CHECK
+      // ==================================================
 
-      const exceedsRiskCap =
+      if (
         actualRiskGBP >
-        finalRiskGBP + 0.01;
+        finalRiskGBP + 0.01
+      ) {
+        finish({
+          ok: false,
+          retryable: false,
 
+          stage:
+            "RISK_CAP_SAFETY_BLOCK",
 
-      if (exceedsRiskCap) {
-        finish(
-          {
-            ok: false,
+          error:
+            "Calculated position exceeds requested GBP risk cap.",
 
-            stage:
-              "RISK_CAP_SAFETY_BLOCK",
+          requestedRiskGBP:
+            finalRiskGBP,
 
-            error:
-              "Calculated position exceeds requested GBP risk cap.",
-
-            requestedRiskGBP:
-              finalRiskGBP,
-
-            actualRiskGBP,
-          },
-          500
-        );
+          actualRiskGBP,
+        });
 
         return;
       }
@@ -775,6 +666,7 @@ export async function GET(request) {
 
       finish({
         ok: true,
+        retryable: false,
 
         stage:
           "POSITION_SIZE_READY",
@@ -791,22 +683,17 @@ export async function GET(request) {
 
           balance:
             Number(
-              accountBalanceGBP.toFixed(
-                2
-              )
+              accountBalanceGBP.toFixed(2)
             ),
         },
 
         trade: {
           entry,
-
           sl,
 
           stopDistance:
             Number(
-              stopDistance.toFixed(
-                4
-              )
+              stopDistance.toFixed(4)
             ),
         },
 
@@ -815,44 +702,32 @@ export async function GET(request) {
 
           percentageRiskGBP:
             Number(
-              percentageRiskGBP.toFixed(
-                2
-              )
+              percentageRiskGBP.toFixed(2)
             ),
 
           hardCapGBP:
             Number(
-              hardCapGBP.toFixed(
-                2
-              )
+              hardCapGBP.toFixed(2)
             ),
 
           finalRiskGBP:
             Number(
-              finalRiskGBP.toFixed(
-                2
-              )
+              finalRiskGBP.toFixed(2)
             ),
 
           riskUSD:
             Number(
-              riskUSD.toFixed(
-                2
-              )
+              riskUSD.toFixed(2)
             ),
 
           actualRiskGBP:
             Number(
-              actualRiskGBP.toFixed(
-                2
-              )
+              actualRiskGBP.toFixed(2)
             ),
 
           actualRiskUSD:
             Number(
-              actualRiskUSD.toFixed(
-                2
-              )
+              actualRiskUSD.toFixed(2)
             ),
         },
 
@@ -865,23 +740,17 @@ export async function GET(request) {
 
           bid:
             Number(
-              gbpUsdBid.toFixed(
-                5
-              )
+              gbpUsdBid.toFixed(5)
             ),
 
           ask:
             Number(
-              gbpUsdAsk.toFixed(
-                5
-              )
+              gbpUsdAsk.toFixed(5)
             ),
 
           mid:
             Number(
-              gbpUsdMid.toFixed(
-                5
-              )
+              gbpUsdMid.toFixed(5)
             ),
 
           quoteTimestamp:
@@ -891,23 +760,17 @@ export async function GET(request) {
         position: {
           rawBarrels:
             Number(
-              rawBarrels.toFixed(
-                4
-              )
+              rawBarrels.toFixed(4)
             ),
 
           barrels:
             Number(
-              barrels.toFixed(
-                2
-              )
+              barrels.toFixed(2)
             ),
 
           lots:
             Number(
-              lots.toFixed(
-                4
-              )
+              lots.toFixed(4)
             ),
 
           protocolVolume:
@@ -916,11 +779,8 @@ export async function GET(request) {
             ),
 
           minVolume,
-
           maxVolume,
-
           stepVolume,
-
           lotSize,
 
           cappedByMaxVolume,
@@ -943,71 +803,68 @@ export async function GET(request) {
 
 
     // ==================================================
-    // TIMEOUT
+    // ATTEMPT TIMEOUT
     // ==================================================
 
     const timeout =
       setTimeout(() => {
-        finish(
-          {
-            ok: false,
+        finish({
+          ok: false,
+          retryable: false,
 
-            stage:
-              "TIMEOUT",
+          stage: "TIMEOUT",
 
-            error:
-              "cTrader broker-data/position-size request timed out",
+          error:
+            "cTrader broker-data/position-size attempt timed out",
 
-            debug: {
-              traderLoaded:
-                traderData !== null,
+          debug: {
+            traderLoaded:
+              traderData !== null,
 
-              spotCrudeLoaded:
-                spotCrudeSymbol !== null,
+            spotCrudeLoaded:
+              spotCrudeSymbol !== null,
 
-              assetsLoaded:
-                assetsData.length > 0,
+            assetsLoaded:
+              assetsData.length > 0,
 
-              depositAssetLoaded:
-                depositAsset !== null,
+            depositAssetLoaded:
+              depositAsset !== null,
 
-              usdAssetLoaded:
-                usdAsset !== null,
+            usdAssetLoaded:
+              usdAsset !== null,
 
-              conversionRequested,
+            conversionRequested,
 
-              conversionChainLoaded:
-                Array.isArray(
-                  conversionSymbols
-                ),
+            conversionChainLoaded:
+              Array.isArray(
+                conversionSymbols
+              ),
 
-              conversionSymbolLoaded:
-                conversionSymbol !== null,
+            conversionSymbolLoaded:
+              conversionSymbol !== null,
 
-              conversionSpecLoaded:
-                conversionSymbolSpec !== null,
+            conversionSpecLoaded:
+              conversionSymbolSpec !== null,
 
-              spotSubscriptionSent:
-                conversionSubscriptionSent,
+            spotSubscriptionSent:
+              conversionSubscriptionSent,
 
-              bidLoaded:
-                Number.isFinite(
-                  conversionBid
-                ),
+            bidLoaded:
+              Number.isFinite(
+                conversionBid
+              ),
 
-              askLoaded:
-                Number.isFinite(
-                  conversionAsk
-                ),
-            },
+            askLoaded:
+              Number.isFinite(
+                conversionAsk
+              ),
           },
-          504
-        );
-      }, 15000);
+        });
+      }, ATTEMPT_TIMEOUT_MS);
 
 
     // ==================================================
-    // WS OPEN
+    // WEBSOCKET OPEN
     // ==================================================
 
     ws.on(
@@ -1034,7 +891,7 @@ export async function GET(request) {
 
 
     // ==================================================
-    // WS MESSAGE
+    // MESSAGE
     // ==================================================
 
     ws.on(
@@ -1048,18 +905,15 @@ export async function GET(request) {
               data.toString()
             );
         } catch {
-          finish(
-            {
-              ok: false,
+          finish({
+            ok: false,
+            retryable: false,
 
-              stage:
-                "PARSE",
+            stage: "PARSE",
 
-              error:
-                "Invalid JSON received from cTrader",
-            },
-            502
-          );
+            error:
+              "Invalid JSON received from cTrader",
+          });
 
           return;
         }
@@ -1071,12 +925,72 @@ export async function GET(request) {
 
 
         // ==================================================
+        // CTRADER ERROR
+        // Handle FIRST
+        // ==================================================
+
+        if (
+          msg.payloadType === 2142 ||
+          msg.payload?.errorCode
+        ) {
+          const errorCode =
+            msg.payload?.errorCode ??
+            "CTRADER_ERROR";
+
+          const description =
+            msg.payload?.description ??
+            "Unknown cTrader error";
+
+
+          // ONLY this error is automatically retryable.
+          if (
+            errorCode ===
+            "CANT_ROUTE_REQUEST"
+          ) {
+            log.push(
+              "CANT_ROUTE_REQUEST"
+            );
+
+            finish({
+              ok: false,
+              retryable: true,
+
+              stage:
+                "CTRADER_ERROR",
+
+              errorCode,
+
+              error:
+                description,
+            });
+
+            return;
+          }
+
+
+          finish({
+            ok: false,
+            retryable: false,
+
+            stage:
+              "CTRADER_ERROR",
+
+            errorCode,
+
+            error:
+              description,
+          });
+
+          return;
+        }
+
+
+        // ==================================================
         // 2101 APP AUTH
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2101
+          msg.payloadType === 2101
         ) {
           log.push(
             "APP_AUTH_OK"
@@ -1106,15 +1020,14 @@ export async function GET(request) {
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2103
+          msg.payloadType === 2103
         ) {
           log.push(
             "ACCOUNT_AUTH_OK"
           );
 
 
-          // Trader
+          // Trader/account
           send(
             2121,
             {
@@ -1129,7 +1042,7 @@ export async function GET(request) {
           );
 
 
-          // Asset list
+          // Assets
           send(
             2112,
             {
@@ -1144,7 +1057,7 @@ export async function GET(request) {
           );
 
 
-          // SpotCrude spec
+          // SpotCrude full specification
           send(
             2116,
             {
@@ -1171,8 +1084,7 @@ export async function GET(request) {
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2122
+          msg.payloadType === 2122
         ) {
           traderData =
             msg.payload?.trader ??
@@ -1195,8 +1107,7 @@ export async function GET(request) {
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2113
+          msg.payloadType === 2113
         ) {
           const assets =
             msg.payload?.asset ??
@@ -1204,9 +1115,7 @@ export async function GET(request) {
             [];
 
           assetsData =
-            Array.isArray(
-              assets
-            )
+            Array.isArray(assets)
               ? assets
               : [];
 
@@ -1223,14 +1132,10 @@ export async function GET(request) {
 
         // ==================================================
         // 2117 FULL SYMBOL
-        //
-        // This response is used for BOTH:
-        // SpotCrude and GBPUSD specs.
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2117
+          msg.payloadType === 2117
         ) {
           const symbols =
             msg.payload?.symbol ??
@@ -1238,25 +1143,23 @@ export async function GET(request) {
             [];
 
           const list =
-            Array.isArray(
-              symbols
-            )
+            Array.isArray(symbols)
               ? symbols
-              : [
-                  symbols,
-                ];
+              : [symbols];
 
 
           for (
-            const symbol
-            of list
+            const symbol of list
           ) {
+            if (!symbol) continue;
+
             const id =
               Number(
                 symbol?.symbolId
               );
 
 
+            // SpotCrude
             if (
               id ===
               SPOTCRUDE_SYMBOL_ID
@@ -1270,6 +1173,7 @@ export async function GET(request) {
             }
 
 
+            // Conversion symbol
             if (
               conversionSymbol &&
               id ===
@@ -1299,8 +1203,7 @@ export async function GET(request) {
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2119
+          msg.payloadType === 2119
         ) {
           const symbols =
             msg.payload?.symbol ??
@@ -1308,9 +1211,7 @@ export async function GET(request) {
             [];
 
           conversionSymbols =
-            Array.isArray(
-              symbols
-            )
+            Array.isArray(symbols)
               ? symbols
               : [];
 
@@ -1324,22 +1225,21 @@ export async function GET(request) {
             conversionSymbols.length ===
             0
           ) {
-            finish(
-              {
-                ok: false,
+            finish({
+              ok: false,
+              retryable: false,
 
-                stage:
-                  "EMPTY_CONVERSION_CHAIN",
-              },
-              500
-            );
+              stage:
+                "EMPTY_CONVERSION_CHAIN",
+
+              error:
+                "No USD to account currency conversion chain returned",
+            });
 
             return;
           }
 
 
-          // For this account:
-          // GBPUSD should be the chain.
           conversionSymbol =
             conversionSymbols[0];
 
@@ -1353,12 +1253,11 @@ export async function GET(request) {
 
 
         // ==================================================
-        // 2128 SPOT SUBSCRIPTION ACK
+        // 2128 SUBSCRIPTION ACK
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2128
+          msg.payloadType === 2128
         ) {
           log.push(
             "SPOT_SUBSCRIPTION_OK"
@@ -1369,12 +1268,11 @@ export async function GET(request) {
 
 
         // ==================================================
-        // 2131 LIVE SPOT EVENT
+        // 2131 LIVE GBPUSD QUOTE
         // ==================================================
 
         if (
-          msg.payloadType ===
-          2131
+          msg.payloadType === 2131
         ) {
           const event =
             msg.payload ?? {};
@@ -1394,38 +1292,28 @@ export async function GET(request) {
 
 
           if (
-            event.bid !==
-            undefined &&
-            event.bid !==
-            null
+            event.bid !== undefined &&
+            event.bid !== null
           ) {
             conversionBid =
-              Number(
-                event.bid
-              ) /
+              Number(event.bid) /
               100000;
           }
 
 
           if (
-            event.ask !==
-            undefined &&
-            event.ask !==
-            null
+            event.ask !== undefined &&
+            event.ask !== null
           ) {
             conversionAsk =
-              Number(
-                event.ask
-              ) /
+              Number(event.ask) /
               100000;
           }
 
 
           if (
-            event.timestamp !==
-            undefined &&
-            event.timestamp !==
-            null
+            event.timestamp !== undefined &&
+            event.timestamp !== null
           ) {
             conversionTimestamp =
               Number(
@@ -1443,63 +1331,368 @@ export async function GET(request) {
 
           return;
         }
-
-
-        // ==================================================
-        // CTRADER ERROR
-        // ==================================================
-
-        if (
-          msg.payloadType ===
-            2142 ||
-          msg.payload?.errorCode
-        ) {
-          finish(
-            {
-              ok: false,
-
-              stage:
-                "CTRADER_ERROR",
-
-              errorCode:
-                msg.payload
-                  ?.errorCode ??
-                "CTRADER_ERROR",
-
-              error:
-                msg.payload
-                  ?.description ??
-                "Unknown cTrader error",
-            },
-            502
-          );
-
-          return;
-        }
       }
     );
 
 
     // ==================================================
-    // WS ERROR
+    // WEBSOCKET ERROR
     // ==================================================
 
     ws.on(
       "error",
       (err) => {
-        finish(
-          {
-            ok: false,
+        finish({
+          ok: false,
+          retryable: false,
 
-            stage:
-              "WEBSOCKET",
+          stage:
+            "WEBSOCKET",
 
-            error:
-              err.message,
-          },
-          502
-        );
+          error:
+            err.message,
+        });
       }
     );
   });
+}
+
+
+// ==================================================
+// GET
+// ==================================================
+
+export async function GET(request) {
+  // ==================================================
+  // EXECUTOR AUTH
+  // ==================================================
+
+  const executorKey =
+    process.env.NBS_EXECUTOR_KEY;
+
+  const providedKey =
+    request.headers.get(
+      "x-nbs-executor-key"
+    );
+
+
+  if (
+    !executorKey ||
+    providedKey !== executorKey
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "AUTH",
+        error:
+          "Unauthorized executor request",
+      },
+      {
+        status: 401,
+      }
+    );
+  }
+
+
+  // ==================================================
+  // ENV
+  // ==================================================
+
+  const clientId =
+    process.env.CTRADER_CLIENT_ID;
+
+  const clientSecret =
+    process.env.CTRADER_CLIENT_SECRET;
+
+  const accessToken =
+    process.env.CTRADER_ACCESS_TOKEN;
+
+
+  if (
+    !clientId ||
+    !clientSecret ||
+    !accessToken
+  ) {
+    return Response.json(
+      {
+        ok: false,
+
+        stage: "ENV",
+
+        error:
+          "Missing cTrader environment variables",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+
+
+  // ==================================================
+  // QUERY PARAMS
+  // ==================================================
+
+  const url =
+    new URL(request.url);
+
+
+  const entry =
+    Number(
+      url.searchParams.get(
+        "entry"
+      )
+    );
+
+
+  const sl =
+    Number(
+      url.searchParams.get(
+        "sl"
+      )
+    );
+
+
+  const riskPercentRaw =
+    Number(
+      url.searchParams.get(
+        "riskPercent"
+      )
+    );
+
+
+  const hardCapGBPRaw =
+    Number(
+      url.searchParams.get(
+        "hardCapGBP"
+      )
+    );
+
+
+  const riskPercent =
+    Number.isFinite(
+      riskPercentRaw
+    ) &&
+    riskPercentRaw > 0
+      ? riskPercentRaw
+      : DEFAULT_RISK_PERCENT;
+
+
+  const hardCapGBP =
+    Number.isFinite(
+      hardCapGBPRaw
+    ) &&
+    hardCapGBPRaw > 0
+      ? hardCapGBPRaw
+      : DEFAULT_HARD_CAP_GBP;
+
+
+  const sizingRequested =
+    Number.isFinite(entry) &&
+    Number.isFinite(sl) &&
+    entry > 0 &&
+    sl > 0 &&
+    entry !== sl;
+
+
+  // ==================================================
+  // RETRY LOOP
+  //
+  // IMPORTANT:
+  // This endpoint is READ-ONLY.
+  //
+  // It NEVER sends an order.
+  //
+  // Therefore a new connection may safely be created
+  // after CANT_ROUTE_REQUEST.
+  // ==================================================
+
+  const allAttemptLogs = [];
+
+
+  for (
+    let attempt = 1;
+    attempt <= MAX_CONNECT_ATTEMPTS;
+    attempt++
+  ) {
+    const result =
+      await runCTraderAttempt({
+        clientId,
+        clientSecret,
+        accessToken,
+
+        entry,
+        sl,
+
+        riskPercent,
+        hardCapGBP,
+
+        sizingRequested,
+
+        attemptNumber:
+          attempt,
+      });
+
+
+    allAttemptLogs.push({
+      attempt,
+      stage:
+        result.stage ?? null,
+
+      errorCode:
+        result.errorCode ?? null,
+
+      retryable:
+        result.retryable === true,
+
+      log:
+        result.log ?? [],
+    });
+
+
+    // ==================================================
+    // SUCCESS
+    // ==================================================
+
+    if (result.ok === true) {
+      const {
+        retryable,
+        attemptNumber,
+        log,
+        ...cleanResult
+      } = result;
+
+
+      return Response.json(
+        {
+          ...cleanResult,
+
+          connectionAttempts:
+            attempt,
+
+          retried:
+            attempt > 1,
+
+          attemptHistory:
+            allAttemptLogs,
+        },
+        {
+          status: 200,
+        }
+      );
+    }
+
+
+    // ==================================================
+    // NON-RETRYABLE ERROR
+    // ==================================================
+
+    if (
+      result.retryable !== true
+    ) {
+      const {
+        retryable,
+        attemptNumber,
+        log,
+        ...cleanResult
+      } = result;
+
+
+      return Response.json(
+        {
+          ...cleanResult,
+
+          connectionAttempts:
+            attempt,
+
+          retried:
+            attempt > 1,
+
+          attemptHistory:
+            allAttemptLogs,
+        },
+        {
+          status:
+            cleanResult.stage ===
+            "INVALID_STOP_DISTANCE"
+              ? 400
+              : 502,
+        }
+      );
+    }
+
+
+    // ==================================================
+    // CANT_ROUTE_REQUEST
+    //
+    // Safe to retry because this endpoint performs
+    // NO trading operation.
+    // ==================================================
+
+    if (
+      result.errorCode ===
+      "CANT_ROUTE_REQUEST" &&
+      attempt <
+        MAX_CONNECT_ATTEMPTS
+    ) {
+      await sleep(
+        RETRY_DELAY_MS
+      );
+
+      continue;
+    }
+
+
+    // ==================================================
+    // RETRIES EXHAUSTED
+    // ==================================================
+
+    return Response.json(
+      {
+        ok: false,
+
+        stage:
+          "CTRADER_RETRY_EXHAUSTED",
+
+        errorCode:
+          result.errorCode ??
+          "CANT_ROUTE_REQUEST",
+
+        error:
+          `cTrader routing failed after ${attempt} attempts`,
+
+        connectionAttempts:
+          attempt,
+
+        retried:
+          attempt > 1,
+
+        attemptHistory:
+          allAttemptLogs,
+      },
+      {
+        status: 502,
+      }
+    );
+  }
+
+
+  // Should never reach here.
+  return Response.json(
+    {
+      ok: false,
+
+      stage:
+        "UNEXPECTED_RETRY_EXIT",
+
+      error:
+        "Unexpected retry loop exit",
+
+      attemptHistory:
+        allAttemptLogs,
+    },
+    {
+      status: 500,
+    }
+  );
 }

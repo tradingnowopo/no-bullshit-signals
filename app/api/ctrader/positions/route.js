@@ -157,9 +157,28 @@ export async function GET() {
             tradeSide: p.tradeData?.tradeSide ?? null,
             volume: p.tradeData?.volume ?? null,
             entryPrice: p.price ?? null,
-            stopLoss: p.stopLoss ?? null,
-            takeProfit: p.takeProfit ?? null,
-            positionStatus: p.positionStatus ?? null,
+         stopLoss: p.stopLoss ?? null,
+takeProfit: p.takeProfit ?? null,
+
+hasStopLoss:
+  p.stopLoss !== undefined &&
+  p.stopLoss !== null &&
+  Number(p.stopLoss) > 0,
+
+hasTakeProfit:
+  p.takeProfit !== undefined &&
+  p.takeProfit !== null &&
+  Number(p.takeProfit) > 0,
+
+protected:
+  p.stopLoss !== undefined &&
+  p.stopLoss !== null &&
+  Number(p.stopLoss) > 0 &&
+  p.takeProfit !== undefined &&
+  p.takeProfit !== null &&
+  Number(p.takeProfit) > 0,
+
+positionStatus: p.positionStatus ?? null,
             label: p.tradeData?.label ?? null,
             openTimestamp: p.tradeData?.openTimestamp ?? null,
             usedMargin: p.usedMargin ?? null,

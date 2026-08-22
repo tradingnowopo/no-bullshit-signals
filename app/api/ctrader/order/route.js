@@ -296,6 +296,7 @@ async function updateExecution(status, fields = {}) {
         error_code: "TIMEOUT",
         error_message: "cTrader request timed out",
       });
+
       log.push("EXECUTION_DB_TIMEOUT_UPDATED");
     } catch (err) {
       log.push("EXECUTION_DB_UPDATE_FAILED");
@@ -308,6 +309,12 @@ async function updateExecution(status, fields = {}) {
       ok: false,
       stage: "TIMEOUT",
       error: "cTrader request timed out",
+
+      retryPolicy: "CHECK_POSITION_FIRST",
+      retryAutomatically: false,
+
+      safetyReason:
+        "Do not resend automatically. The broker may have executed the order before the timeout. Check open positions first.",
     },
     504
   );
@@ -398,48 +405,58 @@ if (msg.payloadType === 2125) {
   );
 
   if (openSpotCrude.length > 0) {
-    log.push("DUPLICATE_BLOCKED");
-      if (!preflightOnly) {
-  try {
-    await updateExecution("DUPLICATE_POSITION", {
-      error_code: "DUPLICATE_POSITION",
-      error_message: "An open SpotCrude position already exists",
-    });
+  log.push("DUPLICATE_BLOCKED");
 
-    log.push("EXECUTION_DB_DUPLICATE_UPDATED");
-  } catch (err) {
-    log.push("EXECUTION_DB_UPDATE_FAILED");
-    console.error(err);
+  if (!preflightOnly) {
+    try {
+      await updateExecution("DUPLICATE_POSITION", {
+        error_code: "DUPLICATE_POSITION",
+        error_message: "An open SpotCrude position already exists",
+      });
+
+      log.push("EXECUTION_DB_DUPLICATE_UPDATED");
+    } catch (err) {
+      log.push("EXECUTION_DB_UPDATE_FAILED");
+      console.error(err);
+    }
   }
+
+  finish(
+    {
+      ok: false,
+      stage: "DUPLICATE_BLOCKED",
+
+      environment: "DEMO",
+      accountId: ACCOUNT_ID,
+      symbol: SYMBOL_NAME,
+      symbolId: SYMBOL_ID,
+
+      retryPolicy: "DO_NOT_RETRY",
+      retryAutomatically: false,
+
+      safetyReason:
+        "An open SpotCrude position already exists. Do not open another position automatically.",
+
+      existingPositions: openSpotCrude.map((p) => ({
+        positionId: p.positionId,
+        direction:
+          p.tradeData?.tradeSide === 1
+            ? "LONG"
+            : p.tradeData?.tradeSide === 2
+            ? "SHORT"
+            : "UNKNOWN",
+        volume: p.tradeData?.volume ?? null,
+        entryPrice: p.price ?? null,
+        label: p.tradeData?.label ?? null,
+      })),
+
+      orderWouldBeSent: false,
+    },
+    409
+  );
+
+  return;
 }
-
-    finish(
-      {
-        ok: false,
-        stage: "DUPLICATE_BLOCKED",
-        environment: "DEMO",
-        accountId: ACCOUNT_ID,
-        symbol: SYMBOL_NAME,
-        symbolId: SYMBOL_ID,
-        existingPositions: openSpotCrude.map((p) => ({
-          positionId: p.positionId,
-          direction:
-            p.tradeData?.tradeSide === 1
-              ? "LONG"
-              : p.tradeData?.tradeSide === 2
-              ? "SHORT"
-              : "UNKNOWN",
-          volume: p.tradeData?.volume ?? null,
-          entryPrice: p.price ?? null,
-          label: p.tradeData?.label ?? null,
-        })),
-        orderWouldBeSent: false,
-      },
-      409
-    );
-
-    return;
-  }
 
   log.push("NO_OPEN_SPOTCRUDE_POSITION");
   if (preflightOnly) {
@@ -565,14 +582,31 @@ if (msg.payloadType === 2125) {
       }
 
    if (msg.payloadType === 2142 || msg.payload?.errorCode) {
-  const errorCode = msg.payload?.errorCode ?? "CTRADER_ERROR";
+  const errorCode =
+    msg.payload?.errorCode ?? "CTRADER_ERROR";
+
   const errorMessage =
     msg.payload?.description ?? "Unknown cTrader error";
+
+  const NO_RETRY_ERRORS = new Set([
+    "MARKET_CLOSED",
+    "NOT_ENOUGH_MONEY",
+    "TRADING_BAD_VOLUME",
+    "TRADING_BAD_STOPS",
+    "TRADING_DISABLED",
+    "SYMBOL_NOT_FOUND",
+    "POSITION_NOT_FOUND",
+  ]);
 
   const executionStatus =
     errorCode === "MARKET_CLOSED"
       ? "MARKET_CLOSED"
       : "CTRADER_ERROR";
+
+  const retryPolicy =
+    NO_RETRY_ERRORS.has(errorCode)
+      ? "DO_NOT_RETRY"
+      : "MANUAL_CHECK";
 
   if (!preflightOnly) {
     try {
@@ -581,7 +615,9 @@ if (msg.payloadType === 2125) {
         error_message: errorMessage,
       });
 
-      log.push(`EXECUTION_DB_${executionStatus}_UPDATED`);
+      log.push(
+        `EXECUTION_DB_${executionStatus}_UPDATED`
+      );
     } catch (err) {
       log.push("EXECUTION_DB_UPDATE_FAILED");
       console.error(err);
@@ -592,8 +628,17 @@ if (msg.payloadType === 2125) {
     {
       ok: false,
       stage: executionStatus,
+
       errorCode,
       error: errorMessage,
+
+      retryPolicy,
+      retryAutomatically: false,
+
+      safetyReason:
+        retryPolicy === "MANUAL_CHECK"
+          ? "Order state may be uncertain. Check open positions before retrying."
+          : "This error must not be automatically retried.",
     },
     502
   );

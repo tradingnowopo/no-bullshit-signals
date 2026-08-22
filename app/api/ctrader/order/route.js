@@ -25,6 +25,19 @@ export async function POST(request) {
       { status: 401 }
     );
   }
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "ENV",
+        error: "Missing Supabase executor environment variables",
+      },
+      { status: 500 }
+    );
+  }
   const clientId = process.env.CTRADER_CLIENT_ID;
   const clientSecret = process.env.CTRADER_CLIENT_SECRET;
   const accessToken = process.env.CTRADER_ACCESS_TOKEN;
@@ -57,6 +70,17 @@ export async function POST(request) {
 
   const direction = String(body?.direction || "").toUpperCase();
   const symbol = String(body?.symbol || "").toUpperCase();
+    const signalId = String(body?.signalId || "").trim();
+    if (!signalId) {
+  return Response.json(
+    {
+      ok: false,
+      stage: "VALIDATION",
+      error: "signalId is required",
+    },
+    { status: 400 }
+  );
+}
 
   const volume = Number(body?.volume ?? 100);
 
@@ -150,6 +174,59 @@ if (validateOnly) {
     orderWouldBeSent: false,
   });
 }
+
+if (!preflightOnly) {
+  const claimResponse = await fetch(
+    `${supabaseUrl}/rest/v1/ctrader_signal_executions`,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        signal_id: signalId,
+        environment: "DEMO",
+        symbol,
+        direction,
+        status: "CLAIMED",
+        entry: Number.isFinite(entry) ? entry : null,
+        sl: Number.isFinite(sl) ? sl : null,
+        tp1: Number.isFinite(tp1) ? tp1 : null,
+        tp2: Number.isFinite(tp2) ? tp2 : null,
+      }),
+    }
+  );
+
+  if (claimResponse.status === 409) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "DUPLICATE_SIGNAL_BLOCKED",
+        signalId,
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
+
+  if (!claimResponse.ok) {
+    const claimError = await claimResponse.text();
+
+    return Response.json(
+      {
+        ok: false,
+        stage: "IDEMPOTENCY_ERROR",
+        error: claimError,
+      },
+      { status: 500 }
+    );
+  }
+}
+
+
 
   const log = [];
 

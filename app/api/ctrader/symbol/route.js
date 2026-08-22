@@ -143,15 +143,15 @@ export async function GET(request) {
         log.push("ACCOUNT_AUTH_OK");
 
         send(
-          2114,
-          {
-            ctidTraderAccountId: ACCOUNT_ID,
-            symbolId: [SYMBOL_ID],
-          },
-          `NBS_SYMBOL_BY_ID_${Date.now()}`
-        );
+  2116,
+  {
+    ctidTraderAccountId: ACCOUNT_ID,
+    symbolId: [SYMBOL_ID],
+  },
+  `NBS_SYMBOL_BY_ID_${Date.now()}`
+);
 
-        log.push("2114_SEND_CALLED");
+log.push("2116_SEND_CALLED");
         return;
       }
 

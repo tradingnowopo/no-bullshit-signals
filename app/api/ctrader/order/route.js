@@ -296,18 +296,26 @@ if (msg.payloadType === 2125) {
   log.push("PREFLIGHT_OK");
 
   finish({
-    ok: true,
-    stage: "PREFLIGHT_OK",
-    environment: "DEMO",
-    accountId: ACCOUNT_ID,
-    symbol: SYMBOL_NAME,
-    symbolId: SYMBOL_ID,
-    direction,
-    tradeSide,
-    volume,
-    openSpotCrudeCount: 0,
-    orderWouldBeSent: false,
-  });
+  ok: true,
+  stage: "PREFLIGHT_OK",
+  environment: "DEMO",
+  accountId: ACCOUNT_ID,
+  symbol: SYMBOL_NAME,
+  symbolId: SYMBOL_ID,
+  direction,
+  tradeSide,
+  volume,
+  openSpotCrudeCount: 0,
+
+  signalPlan: {
+    entry: Number.isFinite(entry) ? entry : null,
+    sl: Number.isFinite(sl) ? sl : null,
+    tp1: Number.isFinite(tp1) ? tp1 : null,
+    tp2: Number.isFinite(tp2) ? tp2 : null,
+  },
+
+  orderWouldBeSent: false,
+});
 
   return;
 }

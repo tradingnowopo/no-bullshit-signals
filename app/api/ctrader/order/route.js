@@ -146,7 +146,8 @@ export async function POST(request) {
 
   const tradeSide = direction === "LONG" ? 1 : 2;
   const validateOnly = body?.validateOnly === true;
-  const preflightOnly = body?.preflightOnly === true;
+const preflightOnly = body?.preflightOnly === true;
+const idempotencyTestOnly = body?.idempotencyTestOnly === true;
 
 if (validateOnly) {
   return Response.json({
@@ -191,7 +192,7 @@ if (!preflightOnly) {
         environment: "DEMO",
         symbol,
         direction,
-        status: "CLAIMED",
+        status: idempotencyTestOnly ? "CLAIMED_TEST" : "CLAIMED",
         entry: Number.isFinite(entry) ? entry : null,
         sl: Number.isFinite(sl) ? sl : null,
         tp1: Number.isFinite(tp1) ? tp1 : null,
@@ -223,6 +224,16 @@ if (!preflightOnly) {
       },
       { status: 500 }
     );
+  }
+
+  if (idempotencyTestOnly) {
+    return Response.json({
+      ok: true,
+      stage: "IDEMPOTENCY_CLAIM_OK",
+      signalId,
+      environment: "DEMO",
+      orderWouldBeSent: false,
+    });
   }
 }
 

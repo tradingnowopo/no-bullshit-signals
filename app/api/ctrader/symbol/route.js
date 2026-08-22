@@ -41,6 +41,7 @@ export async function GET(request) {
 
   let traderData = null;
   let symbolData = null;
+  let depositAsset = null;
 
   return new Promise((resolve) => {
     const ws = new WebSocket(WS_URL);
@@ -70,9 +71,9 @@ export async function GET(request) {
     };
 
     const finishIfReady = () => {
-      if (!traderData || !symbolData) {
-        return;
-      }
+      if (!traderData || !symbolData || !depositAsset) {
+  return;
+}
 
       finish({
         ok: true,
@@ -85,10 +86,25 @@ export async function GET(request) {
 
         trader: traderData,
         symbol: symbolData,
+        depositAsset,
 
         normalized: {
           symbolId:
             symbolData.symbolId ?? SYMBOL_ID,
+          accountCurrency:
+  depositAsset?.name ??
+  depositAsset?.displayName ??
+  null,
+
+accountBalance:
+  traderData?.balance !== null &&
+  traderData?.balance !== undefined
+    ? traderData.balance /
+      Math.pow(10, traderData.moneyDigits ?? 2)
+    : null,
+
+moneyDigits:
+  traderData?.moneyDigits ?? null,
 
           symbolName:
             symbolData.symbolName ??
@@ -210,34 +226,44 @@ export async function GET(request) {
       // ==================================================
 
       if (msg.payloadType === 2103) {
-        log.push("ACCOUNT_AUTH_OK");
+  log.push("ACCOUNT_AUTH_OK");
 
-        // Trader/account info
-        send(
-          2121,
-          {
-            ctidTraderAccountId: ACCOUNT_ID,
-          },
-          `NBS_TRADER_${Date.now()}`
-        );
+  // 1. Trader/account info
+  send(
+    2121,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+    },
+    `NBS_TRADER_${Date.now()}`
+  );
 
-        log.push("2121_SEND_CALLED");
+  log.push("2121_SEND_CALLED");
 
-        // Full SpotCrude symbol specification
-        send(
-          2116,
-          {
-            ctidTraderAccountId: ACCOUNT_ID,
-            symbolId: [SYMBOL_ID],
-          },
-          `NBS_SYMBOL_BY_ID_${Date.now()}`
-        );
+  // 2. Asset list
+  send(
+    2112,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+    },
+    `NBS_ASSETS_${Date.now()}`
+  );
 
-        log.push("2116_SEND_CALLED");
+  log.push("2112_SEND_CALLED");
 
-        return;
-      }
+  // 3. Full SpotCrude symbol specification
+  send(
+    2116,
+    {
+      ctidTraderAccountId: ACCOUNT_ID,
+      symbolId: [SYMBOL_ID],
+    },
+    `NBS_SYMBOL_BY_ID_${Date.now()}`
+  );
 
+  log.push("2116_SEND_CALLED");
+
+  return;
+}
       // ==================================================
       // TRADER / ACCOUNT RESPONSE
       // ==================================================
@@ -257,7 +283,27 @@ export async function GET(request) {
       // ==================================================
       // FULL SYMBOL RESPONSE
       // ==================================================
+    if (msg.payloadType === 2113) {
+  const assets =
+    msg.payload?.asset ??
+    msg.payload?.assets ??
+    [];
 
+  const depositAssetId =
+    traderData?.depositAssetId ?? 6;
+
+  depositAsset =
+    Array.isArray(assets)
+      ? assets.find(
+          a => Number(a?.assetId) === Number(depositAssetId)
+        ) ?? null
+      : null;
+
+  log.push("ASSET_DATA_LOADED");
+
+  finishIfReady();
+  return;
+}
       if (msg.payloadType === 2117) {
         const symbols =
           msg.payload?.symbol ??

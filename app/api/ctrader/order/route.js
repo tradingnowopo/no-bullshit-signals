@@ -90,6 +90,20 @@ export async function POST(request) {
   const direction = String(body?.direction || "").toUpperCase();
   const symbol = String(body?.symbol || "").toUpperCase();
   const signalId = String(body?.signalId || "").trim();
+  const tradeReady = body?.trade_ready;
+
+if (tradeReady !== true) {
+  return Response.json(
+    {
+      ok: false,
+      stage: "TRADE_NOT_READY",
+      error: "trade_ready must be true",
+      signalId,
+      orderWouldBeSent: false,
+    },
+    { status: 409 }
+  );
+}
 
   if (!signalId) {
     return Response.json(

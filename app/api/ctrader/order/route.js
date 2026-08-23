@@ -456,12 +456,24 @@ if (tradeReady !== true) {
     // true  = order request has been sent to websocket.
     let orderSendStarted = false;
 
+    // App-auth routing can transiently fail with 2142/CANT_ROUTE_REQUEST.
+    // Retry the 2100 application-auth request on the same socket before
+    // touching execution state. This is safe because 2106 has not been sent.
+    let appAuthAttempts = 0;
+    const MAX_APP_AUTH_ATTEMPTS = 3;
+    const APP_AUTH_RETRY_DELAY_MS = 2000;
+    let appAuthRetryTimer = null;
+
     const finish = (data, status = 200) => {
       if (finished) return;
 
       finished = true;
 
       clearTimeout(timeout);
+      if (appAuthRetryTimer) {
+        clearTimeout(appAuthRetryTimer);
+        appAuthRetryTimer = null;
+      }
 
       try {
         ws.terminate();
@@ -552,24 +564,32 @@ if (tradeReady !== true) {
     // OPEN
     // ==================================================
 
+    const sendAppAuth = () => {
+      if (finished) return;
+      if (ws.readyState !== WebSocket.OPEN) return;
+
+      appAuthAttempts += 1;
+      log.push(`APP_AUTH_ATTEMPT_${appAuthAttempts}`);
+
+      send(
+        2100,
+        {
+          clientId,
+          clientSecret,
+        },
+        `NBS_APP_AUTH_${Date.now()}_${appAuthAttempts}`
+      );
+
+      log.push("2100_SEND_CALLED");
+    };
+
     ws.on("open", () => {
-  log.push("WEBSOCKET_OPEN");
+      log.push("WEBSOCKET_OPEN");
 
-  setTimeout(() => {
-    if (finished) return;
-
-    send(
-      2100,
-      {
-        clientId,
-        clientSecret,
-      },
-      `NBS_APP_AUTH_${Date.now()}`
-    );
-
-    log.push("2100_SEND_CALLED");
-  }, WS_AUTH_DELAY_MS);
-});
+      setTimeout(() => {
+        sendAppAuth();
+      }, WS_AUTH_DELAY_MS);
+    });
 
     // ==================================================
     // MESSAGE
@@ -1001,6 +1021,28 @@ if (tradeReady !== true) {
         // ==================================================
 
         if (!orderSendStarted) {
+          // A transient routing failure can happen on the 2100 app-auth
+          // request. Retry authentication before marking the execution as
+          // failed. No 2106 order request has been sent yet.
+          if (
+            errorCode === "CANT_ROUTE_REQUEST" &&
+            appAuthAttempts < MAX_APP_AUTH_ATTEMPTS &&
+            ws.readyState === WebSocket.OPEN
+          ) {
+            const nextAttempt = appAuthAttempts + 1;
+
+            log.push(
+              `CTRADER_AUTH_RETRY_SCHEDULED_${nextAttempt}`
+            );
+
+            appAuthRetryTimer = setTimeout(() => {
+              appAuthRetryTimer = null;
+              sendAppAuth();
+            }, APP_AUTH_RETRY_DELAY_MS * (nextAttempt - 1));
+
+            return;
+          }
+
           let executionStatus =
             "CTRADER_ERROR_BEFORE_ORDER";
 

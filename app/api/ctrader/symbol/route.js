@@ -2,13 +2,13 @@ import WebSocket from "ws";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const WS_URL = "wss://demo.ctraderapi.com:5036";
 
 const MAX_CONNECT_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1500;
-const ATTEMPT_TIMEOUT_MS = 8000;
+const RETRY_DELAY_MS = 3000;
+const ATTEMPT_TIMEOUT_MS = 12000;
 
 const ACCOUNT_ID = 48342468;
 const SPOTCRUDE_SYMBOL_ID = 250;
@@ -1373,12 +1373,17 @@ function runCTraderAttempt({
     ws.on(
       "error",
       (err) => {
+        // This endpoint is READ-ONLY sizing. A connection-level
+        // failure before a successful sizing result is safe to retry.
         finish({
           ok: false,
-          retryable: false,
+          retryable: true,
 
           stage:
             "WEBSOCKET",
+
+          errorCode:
+            "WEBSOCKET_ERROR",
 
           error:
             err.message,
@@ -1661,14 +1666,20 @@ export async function GET(request) {
     // ==================================================
 
     if (
-      result.errorCode ===
-      "CANT_ROUTE_REQUEST" &&
+      result.retryable === true &&
       attempt <
         MAX_CONNECT_ATTEMPTS
     ) {
-      await sleep(
-        RETRY_DELAY_MS
-      );
+      // Exponential backoff:
+      // attempt 1 failure -> 3s
+      // attempt 2 failure -> 6s
+      // This avoids immediately reopening a route that cTrader
+      // has not finished releasing/establishing.
+      const retryDelay =
+        RETRY_DELAY_MS *
+        Math.pow(2, attempt - 1);
+
+      await sleep(retryDelay);
 
       continue;
     }
@@ -1690,7 +1701,7 @@ export async function GET(request) {
           "CANT_ROUTE_REQUEST",
 
         error:
-          `cTrader routing failed after ${attempt} attempts`,
+          `cTrader connection failed after ${attempt} attempts`,
 
         connectionAttempts:
           attempt,

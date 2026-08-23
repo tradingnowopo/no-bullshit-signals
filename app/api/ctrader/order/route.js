@@ -571,16 +571,19 @@ if (tradeReady !== true) {
       appAuthAttempts += 1;
       log.push(`APP_AUTH_ATTEMPT_${appAuthAttempts}`);
 
+      const clientMsgId = `NBS_APP_AUTH_${Date.now()}_${appAuthAttempts}`;
+
       send(
         2100,
         {
           clientId,
           clientSecret,
         },
-        `NBS_APP_AUTH_${Date.now()}_${appAuthAttempts}`
+        clientMsgId
       );
 
       log.push("2100_SEND_CALLED");
+      log.push(`2100_CLIENT_MSG_ID_${clientMsgId}`);
     };
 
     ws.on("open", () => {
@@ -1014,7 +1017,25 @@ if (tradeReady !== true) {
 
         const errorMessage =
           msg.payload?.description ??
+          msg.payload?.errorMessage ??
           "Unknown cTrader error";
+
+        // Full safe diagnostic for cTrader routing/auth errors.
+        // Never log clientSecret or accessToken.
+        if (msg.payloadType === 2142) {
+          log.push(
+            `CTRADER_2142_PAYLOAD_${JSON.stringify({
+              payloadType: msg.payloadType,
+              clientMsgId: msg.clientMsgId ?? null,
+              errorCode: msg.payload?.errorCode ?? null,
+              description: msg.payload?.description ?? null,
+              errorMessage: msg.payload?.errorMessage ?? null,
+              payloadKeys: msg.payload
+                ? Object.keys(msg.payload)
+                : [],
+            })}`
+          );
+        }
 
         // ==================================================
         // ERROR BEFORE 2106
@@ -1024,23 +1045,8 @@ if (tradeReady !== true) {
           // A transient routing failure can happen on the 2100 app-auth
           // request. Retry authentication before marking the execution as
           // failed. No 2106 order request has been sent yet.
-          if (
-            errorCode === "CANT_ROUTE_REQUEST" &&
-            appAuthAttempts < MAX_APP_AUTH_ATTEMPTS &&
-            ws.readyState === WebSocket.OPEN
-          ) {
-            const nextAttempt = appAuthAttempts + 1;
-
-            log.push(
-              `CTRADER_AUTH_RETRY_SCHEDULED_${nextAttempt}`
-            );
-
-            appAuthRetryTimer = setTimeout(() => {
-              appAuthRetryTimer = null;
-              sendAppAuth();
-            }, APP_AUTH_RETRY_DELAY_MS * (nextAttempt - 1));
-
-            return;
+          if (errorCode === "CANT_ROUTE_REQUEST") {
+            log.push("CTRADER_2142_NO_SAME_SOCKET_RETRY");
           }
 
           let executionStatus =

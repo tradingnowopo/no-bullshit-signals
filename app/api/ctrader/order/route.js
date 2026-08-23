@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const WS_URL = "wss://demo.ctraderapi.com:5036";
+const WS_CONNECT_TIMEOUT_MS = 10000;
+const WS_AUTH_DELAY_MS = 500;
 
 const ACCOUNT_ID = 48342468;
 const SYMBOL_ID = 250;
@@ -551,19 +553,23 @@ if (tradeReady !== true) {
     // ==================================================
 
     ws.on("open", () => {
-      log.push("WEBSOCKET_OPEN");
+  log.push("WEBSOCKET_OPEN");
 
-      send(
-        2100,
-        {
-          clientId,
-          clientSecret,
-        },
-        `NBS_APP_AUTH_${Date.now()}`
-      );
+  setTimeout(() => {
+    if (finished) return;
 
-      log.push("2100_SEND_CALLED");
-    });
+    send(
+      2100,
+      {
+        clientId,
+        clientSecret,
+      },
+      `NBS_APP_AUTH_${Date.now()}`
+    );
+
+    log.push("2100_SEND_CALLED");
+  }, WS_AUTH_DELAY_MS);
+});
 
     // ==================================================
     // MESSAGE

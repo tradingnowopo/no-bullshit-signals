@@ -868,26 +868,54 @@ function runCTraderAttempt({
     // ==================================================
 
     ws.on(
-      "open",
-      () => {
-        log.push(
-          "WEBSOCKET_OPEN"
-        );
-
-        send(
-          2100,
-          {
-            clientId,
-            clientSecret,
-          },
-          `NBS_APP_AUTH_${Date.now()}`
-        );
-
-        log.push(
-          "2100_SEND_CALLED"
-        );
-      }
+  "open",
+  async () => {
+    log.push(
+      "WEBSOCKET_OPEN"
     );
+
+    // Give cTrader proxy a short moment to finish
+    // routing the newly established WebSocket.
+    await sleep(350);
+
+    if (finished) {
+      return;
+    }
+
+    if (
+      ws.readyState !==
+      WebSocket.OPEN
+    ) {
+      finish({
+        ok: false,
+        retryable: true,
+        stage:
+          "WEBSOCKET_NOT_OPEN_AFTER_DELAY",
+        error:
+          "WebSocket closed before application authentication",
+      });
+
+      return;
+    }
+
+    log.push(
+      "CTRADER_ROUTING_DELAY_OK"
+    );
+
+    send(
+      2100,
+      {
+        clientId,
+        clientSecret,
+      },
+      `NBS_APP_AUTH_${Date.now()}`
+    );
+
+    log.push(
+      "2100_SEND_CALLED"
+    );
+  }
+);
 
 
     // ==================================================

@@ -36,7 +36,10 @@ function runCTraderAttempt({
   attemptNumber,
 }) {
   return new Promise((resolve) => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(WS_URL, {
+  perMessageDeflate: false,
+  handshakeTimeout: 15000,
+});
 
     let finished = false;
 

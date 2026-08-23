@@ -6,9 +6,10 @@ export const maxDuration = 60;
 
 const WS_URL = "wss://demo.ctraderapi.com:5036";
 
-const MAX_CONNECT_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 3000;
-const ATTEMPT_TIMEOUT_MS = 12000;
+const MAX_CONNECT_ATTEMPTS = 1;
+const RETRY_DELAY_MS = 0;
+const ATTEMPT_TIMEOUT_MS = 30000;
+const CTRADER_OPEN_DELAY_MS = 2000;
 
 const ACCOUNT_ID = 48342468;
 const SPOTCRUDE_SYMBOL_ID = 250;
@@ -877,9 +878,9 @@ function runCTraderAttempt({
       "WEBSOCKET_OPEN"
     );
 
-    // Give cTrader proxy a short moment to finish
-    // routing the newly established WebSocket.
-    await sleep(350);
+    // Give the cTrader proxy time to finish routing the newly
+    // established WebSocket before application authentication.
+    await sleep(CTRADER_OPEN_DELAY_MS);
 
     if (finished) {
       return;
@@ -971,6 +972,19 @@ function runCTraderAttempt({
           const description =
             msg.payload?.description ??
             "Unknown cTrader error";
+
+          // Safe diagnostic: never include clientSecret/accessToken.
+          if (msg.payloadType === 2142) {
+            log.push(
+              `CTRADER_2142_DETAILS_${JSON.stringify({
+                payloadType: msg.payloadType,
+                clientMsgId: msg.clientMsgId ?? null,
+                errorCode: msg.payload?.errorCode ?? null,
+                description: msg.payload?.description ?? null,
+                payloadKeys: msg.payload ? Object.keys(msg.payload) : [],
+              })}`
+            );
+          }
 
 
           // ONLY this error is automatically retryable.
@@ -1701,7 +1715,7 @@ export async function GET(request) {
           "CANT_ROUTE_REQUEST",
 
         error:
-          `cTrader connection failed after ${attempt} attempts`,
+          `cTrader connection failed after ${attempt} attempt${attempt === 1 ? "" : "s"}`,
 
         connectionAttempts:
           attempt,

@@ -26,10 +26,13 @@ export async function GET(request) {
     );
   }
 
-  const { searchParams } = new URL(request.url);
+  const { searchParams } =
+    new URL(request.url);
 
   const positionId =
-    Number(searchParams.get("positionId"));
+    Number(
+      searchParams.get("positionId")
+    );
 
   if (
     !Number.isInteger(positionId) ||
@@ -39,7 +42,8 @@ export async function GET(request) {
       {
         ok: false,
         stage: "VALIDATION",
-        error: "positionId must be a positive integer",
+        error:
+          "positionId must be a positive integer",
       },
       { status: 400 }
     );
@@ -48,11 +52,15 @@ export async function GET(request) {
   const log = [];
 
   return new Promise((resolve) => {
-    const ws = new WebSocket(WS_URL);
+    const ws =
+      new WebSocket(WS_URL);
 
     let finished = false;
 
-    const finish = (data, status = 200) => {
+    const finish = (
+      data,
+      status = 200
+    ) => {
       if (finished) return;
 
       finished = true;
@@ -74,16 +82,18 @@ export async function GET(request) {
       );
     };
 
-    const timeout = setTimeout(() => {
-      finish(
-        {
-          ok: false,
-          stage: "TIMEOUT",
-          error: "cTrader request timed out",
-        },
-        504
-      );
-    }, 15000);
+    const timeout =
+      setTimeout(() => {
+        finish(
+          {
+            ok: false,
+            stage: "TIMEOUT",
+            error:
+              "cTrader request timed out",
+          },
+          504
+        );
+      }, 15000);
 
     const send = (
       payloadType,
@@ -100,7 +110,9 @@ export async function GET(request) {
     };
 
     ws.on("open", () => {
-      log.push("WEBSOCKET_OPEN");
+      log.push(
+        "WEBSOCKET_OPEN"
+      );
 
       send(
         2100,
@@ -111,7 +123,9 @@ export async function GET(request) {
         `NBS_HISTORY_APP_${Date.now()}`
       );
 
-      log.push("2100_SEND_CALLED");
+      log.push(
+        "2100_SEND_CALLED"
+      );
     });
 
     ws.on("message", (data) => {
@@ -144,8 +158,12 @@ export async function GET(request) {
       // APP AUTH
       // ======================================================
 
-      if (msg.payloadType === 2101) {
-        log.push("APP_AUTH_OK");
+      if (
+        msg.payloadType === 2101
+      ) {
+        log.push(
+          "APP_AUTH_OK"
+        );
 
         send(
           2102,
@@ -158,7 +176,9 @@ export async function GET(request) {
           `NBS_HISTORY_ACCOUNT_${Date.now()}`
         );
 
-        log.push("2102_SEND_CALLED");
+        log.push(
+          "2102_SEND_CALLED"
+        );
 
         return;
       }
@@ -167,13 +187,22 @@ export async function GET(request) {
       // ACCOUNT AUTH
       // ======================================================
 
-      if (msg.payloadType === 2103) {
-        log.push("ACCOUNT_AUTH_OK");
+      if (
+        msg.payloadType === 2103
+      ) {
+        log.push(
+          "ACCOUNT_AUTH_OK"
+        );
 
-        const now = Date.now();
+        const now =
+          Date.now();
 
         const fromTimestamp =
-          now - 48 * 60 * 60 * 1000;
+          now -
+          48 *
+            60 *
+            60 *
+            1000;
 
         send(
           2133,
@@ -192,7 +221,9 @@ export async function GET(request) {
           `NBS_HISTORY_DEALS_${Date.now()}`
         );
 
-        log.push("2133_SEND_CALLED");
+        log.push(
+          "2133_SEND_CALLED"
+        );
 
         return;
       }
@@ -201,7 +232,9 @@ export async function GET(request) {
       // DEAL HISTORY
       // ======================================================
 
-      if (msg.payloadType === 2134) {
+      if (
+        msg.payloadType === 2134
+      ) {
         const deals =
           Array.isArray(
             msg.payload?.deal
@@ -242,6 +275,12 @@ export async function GET(request) {
 
             found:
               false,
+
+            closed:
+              false,
+
+            closingDeal:
+              null,
 
             deals:
               [],
@@ -311,17 +350,21 @@ export async function GET(request) {
             .sort(
               (a, b) =>
                 Number(
-                  a.executionTimestamp || 0
+                  a.executionTimestamp ||
+                    0
                 ) -
                 Number(
-                  b.executionTimestamp || 0
+                  b.executionTimestamp ||
+                    0
                 )
             );
 
         const closingDeals =
           normalizedDeals.filter(
             (deal) =>
-              deal.closePositionDetail != null
+              deal
+                .closePositionDetail !=
+              null
           );
 
         const closingDeal =
@@ -357,7 +400,8 @@ export async function GET(request) {
             true,
 
           closed:
-            closingDeal !== null,
+            closingDeal !==
+            null,
 
           closingDeal,
 
@@ -373,7 +417,8 @@ export async function GET(request) {
       // ======================================================
 
       if (
-        msg.payloadType === 2142 ||
+        msg.payloadType ===
+          2142 ||
         msg.payload?.errorCode
       ) {
         finish(
@@ -400,15 +445,19 @@ export async function GET(request) {
       }
     });
 
-    ws.on("error", (err) => {
-      finish(
-        {
-          ok: false,
-          stage: "WEBSOCKET",
-          error: err.message,
-        },
-        502
-      );
-    });
+    ws.on(
+      "error",
+      (err) => {
+        finish(
+          {
+            ok: false,
+            stage: "WEBSOCKET",
+            error:
+              err.message,
+          },
+          502
+        );
+      }
+    );
   });
 }

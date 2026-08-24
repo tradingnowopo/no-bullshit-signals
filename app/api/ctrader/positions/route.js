@@ -10,7 +10,7 @@ const ACCOUNT_ID = 48342468;
 const SYMBOL_ID = 250;
 const SYMBOL_NAME = "SpotCrude";
 
-export async function GET(request) {
+export async function GET() {
   const clientId = process.env.CTRADER_CLIENT_ID;
   const clientSecret = process.env.CTRADER_CLIENT_SECRET;
   const accessToken = process.env.CTRADER_ACCESS_TOKEN;
@@ -23,25 +23,6 @@ export async function GET(request) {
         error: "Missing cTrader environment variables",
       },
       { status: 500 }
-    );
-  }
-
-  const { searchParams } = new URL(request.url);
-
-  const positionId =
-    Number(searchParams.get("positionId"));
-
-  if (
-    !Number.isInteger(positionId) ||
-    positionId <= 0
-  ) {
-    return Response.json(
-      {
-        ok: false,
-        stage: "VALIDATION",
-        error: "positionId must be a positive integer",
-      },
-      { status: 400 }
     );
   }
 
@@ -108,7 +89,7 @@ export async function GET(request) {
           clientId,
           clientSecret,
         },
-        `NBS_HISTORY_APP_${Date.now()}`
+        `NBS_APP_AUTH_${Date.now()}`
       );
 
       log.push("2100_SEND_CALLED");
@@ -118,10 +99,9 @@ export async function GET(request) {
       let msg;
 
       try {
-        msg =
-          JSON.parse(
-            data.toString()
-          );
+        msg = JSON.parse(
+          data.toString()
+        );
       } catch {
         finish(
           {
@@ -155,7 +135,7 @@ export async function GET(request) {
 
             accessToken,
           },
-          `NBS_HISTORY_ACCOUNT_${Date.now()}`
+          `NBS_ACCOUNT_AUTH_${Date.now()}`
         );
 
         log.push("2102_SEND_CALLED");
@@ -165,185 +145,122 @@ export async function GET(request) {
 
       // ======================================================
       // ACCOUNT AUTH
-      //
-      // Pull recent deals.
       // ======================================================
 
       if (msg.payloadType === 2103) {
         log.push("ACCOUNT_AUTH_OK");
 
-        const now = Date.now();
-
-        // Enough for our Position Manager use case.
-        const fromTimestamp =
-          now - 48 * 60 * 60 * 1000;
-
         send(
-          2133,
+          2124,
           {
             ctidTraderAccountId:
               ACCOUNT_ID,
-
-            fromTimestamp,
-
-            toTimestamp:
-              now,
-
-            maxRows:
-              500,
           },
-          `NBS_HISTORY_DEALS_${Date.now()}`
+          `NBS_POSITIONS_${Date.now()}`
         );
 
-        log.push("2133_SEND_CALLED");
+        log.push("2124_SEND_CALLED");
 
         return;
       }
 
       // ======================================================
-      // DEAL HISTORY
+      // OPEN POSITIONS
       // ======================================================
 
-      if (msg.payloadType === 2134) {
-        const deals =
-          Array.isArray(
-            msg.payload?.deal
-          )
-            ? msg.payload.deal
-            : [];
+      if (msg.payloadType === 2125) {
+        const positions =
+          msg.payload?.position || [];
 
-        const matchingDeals =
-          deals.filter(
-            (deal) =>
-              Number(
-                deal?.positionId
-              ) === positionId
-          );
-
-        if (
-          matchingDeals.length === 0
-        ) {
-          finish({
-            ok: true,
-
-            stage:
-              "POSITION_HISTORY_NOT_FOUND",
-
-            environment:
-              "DEMO",
-
-            accountId:
-              ACCOUNT_ID,
-
-            symbol:
-              SYMBOL_NAME,
-
-            symbolId:
-              SYMBOL_ID,
-
-            positionId,
-
-            found:
-              false,
-
-            deals:
-              [],
-          });
-
-          return;
-        }
-
-        const normalizedDeals =
-          matchingDeals
-            .map((deal) => ({
-              dealId:
-                deal.dealId ??
-                null,
-
-              orderId:
-                deal.orderId ??
-                null,
-
+        const spotCrudePositions =
+          positions
+            .filter(
+              (p) =>
+                p?.tradeData?.symbolId ===
+                SYMBOL_ID
+            )
+            .map((p) => ({
               positionId:
-                deal.positionId ??
-                null,
+                p.positionId,
 
               symbolId:
-                deal.symbolId ??
+                p.tradeData?.symbolId ??
                 null,
 
-              tradeSide:
-                deal.tradeSide ??
-                null,
+              symbol:
+                SYMBOL_NAME,
 
               direction:
-                deal.tradeSide === 1
+                p.tradeData?.tradeSide === 1
                   ? "LONG"
-                  : deal.tradeSide === 2
+                  : p.tradeData?.tradeSide === 2
                     ? "SHORT"
                     : "UNKNOWN",
 
+              tradeSide:
+                p.tradeData?.tradeSide ??
+                null,
+
               volume:
-                deal.volume ??
+                p.tradeData?.volume ??
                 null,
 
-              filledVolume:
-                deal.filledVolume ??
+              entryPrice:
+                p.price ??
                 null,
 
-              executionPrice:
-                deal.executionPrice ??
+              stopLoss:
+                p.stopLoss ??
                 null,
 
-              executionTimestamp:
-                deal.executionTimestamp ??
+              takeProfit:
+                p.takeProfit ??
                 null,
 
-              dealStatus:
-                deal.dealStatus ??
+              hasStopLoss:
+                p.stopLoss !== undefined &&
+                p.stopLoss !== null &&
+                Number(p.stopLoss) > 0,
+
+              hasTakeProfit:
+                p.takeProfit !== undefined &&
+                p.takeProfit !== null &&
+                Number(p.takeProfit) > 0,
+
+              protected:
+                p.stopLoss !== undefined &&
+                p.stopLoss !== null &&
+                Number(p.stopLoss) > 0 &&
+                p.takeProfit !== undefined &&
+                p.takeProfit !== null &&
+                Number(p.takeProfit) > 0,
+
+              positionStatus:
+                p.positionStatus ??
                 null,
 
               label:
-                deal.label ??
+                p.tradeData?.label ??
                 null,
 
-              closePositionDetail:
-                deal.closePositionDetail ??
+              openTimestamp:
+                p.tradeData?.openTimestamp ??
                 null,
-            }))
-            .sort(
-              (a, b) =>
-                Number(
-                  a.executionTimestamp || 0
-                ) -
-                Number(
-                  b.executionTimestamp || 0
-                )
-            );
 
-        const closingDeals =
-          normalizedDeals.filter(
-            (deal) =>
-              deal.closePositionDetail != null
-          );
+              usedMargin:
+                p.usedMargin ??
+                null,
 
-        const closingDeal =
-          closingDeals.length > 0
-            ? closingDeals[
-                closingDeals.length - 1
-              ]
-            : null;
+              swap:
+                p.swap ??
+                null,
+            }));
 
         finish({
           ok: true,
+          stage: "POSITIONS_OK",
 
-          stage:
-            closingDeal
-              ? "POSITION_CLOSED_FOUND"
-              : "POSITION_DEALS_FOUND",
-
-          environment:
-            "DEMO",
+          environment: "DEMO",
 
           accountId:
             ACCOUNT_ID,
@@ -354,18 +271,11 @@ export async function GET(request) {
           symbolId:
             SYMBOL_ID,
 
-          positionId,
+          count:
+            spotCrudePositions.length,
 
-          found:
-            true,
-
-          closed:
-            closingDeal !== null,
-
-          closingDeal,
-
-          deals:
-            normalizedDeals,
+          positions:
+            spotCrudePositions,
         });
 
         return;
@@ -387,15 +297,12 @@ export async function GET(request) {
               "CTRADER_ERROR",
 
             errorCode:
-              msg.payload
-                ?.errorCode ??
+              msg.payload?.errorCode ??
               null,
 
             error:
-              msg.payload
-                ?.description ??
-              msg.payload
-                ?.errorMessage ??
+              msg.payload?.description ??
+              msg.payload?.errorMessage ??
               "Unknown cTrader error",
           },
           502

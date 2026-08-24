@@ -50,7 +50,7 @@ if (!newsError && newsData) {
       .select(
         "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status, stop_loss, tp1, tp2, result, exit_price, pnl_percent, closed_at, tp2_hit, tp2_hit_at, max_favorable_price"
       )
-      .eq("status", "accepted")
+      .in("status", ["accepted", "closed"])
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -91,7 +91,7 @@ if (!newsError && newsData) {
       .select(
         "id, created_at, instrument, direction, confidence, score, entry_price, timeframe, status, stop_loss, tp1, tp2, result, exit_price, pnl_percent, closed_at, tp2_hit, tp2_hit_at, max_favorable_price"
       )
-      .eq("status", "accepted")
+      .in("status", ["accepted", "closed"])
       .order("created_at", { ascending: false })
       .limit(50);
 

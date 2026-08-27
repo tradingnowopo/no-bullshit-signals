@@ -17,6 +17,7 @@ const PERIODS = [
   { name: "M15", value: 7 },
   { name: "H1", value: 9 },
   { name: "H4", value: 10 },
+  { name: "D1", value: 12 },
 ];
 
 const sleep = (ms) =>
@@ -510,18 +511,12 @@ results[period] =
               PERIODS.length,
 
             bars: {
-              M5:
-                results.M5 ?? [],
-
-              M15:
-                results.M15 ?? [],
-
-              H1:
-                results.H1 ?? [],
-
-              H4:
-                results.H4 ?? [],
-            },
+  M5: results.M5 ?? [],
+  M15: results.M15 ?? [],
+  H1: results.H1 ?? [],
+  H4: results.H4 ?? [],
+  D1: results.D1 ?? [],
+},
 
             readOnly:
               true,

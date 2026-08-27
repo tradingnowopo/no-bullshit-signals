@@ -469,7 +469,7 @@ results[period] =
 
 
 // ==================================================
-// WAIT FOR ALL 4 TIMEFRAMES
+// WAIT FOR ALL 5 TIMEFRAMES
 // ==================================================
 
           const ready =

@@ -12,7 +12,12 @@ const SPOTCRUDE_SYMBOL_ID = 250;
 const OPEN_DELAY_MS = 2000;
 const TIMEOUT_MS = 30000;
 
-const PERIODS = ["M5", "M15", "H1", "H4"];
+const PERIODS = [
+  { name: "M5", value: 5 },
+  { name: "M15", value: 7 },
+  { name: "H1", value: 9 },
+  { name: "H4", value: 10 },
+];
 
 const sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -378,31 +383,32 @@ function getBars({
 // ==================================================
 
           for (
-            const period of PERIODS
-          ) {
-            send(
-              2137,
-              {
-                ctidTraderAccountId:
-                  ACCOUNT_ID,
+  const period of PERIODS
+) {
+  send(
+    2137,
+    {
+      ctidTraderAccountId:
+        ACCOUNT_ID,
 
-                symbolId:
-                  SPOTCRUDE_SYMBOL_ID,
+      symbolId:
+        SPOTCRUDE_SYMBOL_ID,
 
-                period,
+      period:
+        period.value,
 
-                count,
+      count,
 
-                toTimestamp:
-                  now,
-              },
-              `NBS_BARS_${period}_${Date.now()}`
-            );
+      toTimestamp:
+        now,
+    },
+    `NBS_BARS_${period.name}_${Date.now()}`
+  );
 
-            log.push(
-              `2137_${period}_SEND_CALLED`
-            );
-          }
+  log.push(
+    `2137_${period.name}_SEND_CALLED`
+  );
+}
 
           return;
         }
@@ -418,26 +424,35 @@ function getBars({
           const payload =
             msg.payload ?? {};
 
-          const period =
-            payload.period;
+          const periodValue =
+  Number(payload.period);
 
-          const trendbars =
-            Array.isArray(
-              payload.trendbar
-            )
-              ? payload.trendbar
-              : [];
+const periodConfig =
+  PERIODS.find(
+    (p) =>
+      p.value === periodValue
+  );
 
-          if (
-            !PERIODS.includes(
-              period
-            )
-          ) {
-            return;
-          }
+if (!periodConfig) {
+  log.push(
+    `UNKNOWN_PERIOD_${periodValue}`
+  );
 
-          results[period] =
-            trendbars
+  return;
+}
+
+const period =
+  periodConfig.name;
+
+const trendbars =
+  Array.isArray(
+    payload.trendbar
+  )
+    ? payload.trendbar
+    : [];
+
+results[period] =
+  trendbars
               .map(
                 normalizeBar
               )
@@ -457,12 +472,12 @@ function getBars({
 // ==================================================
 
           const ready =
-            PERIODS.every(
-              (p) =>
-                Array.isArray(
-                  results[p]
-                )
-            );
+  PERIODS.every(
+    (p) =>
+      Array.isArray(
+        results[p.name]
+      )
+  );
 
           if (!ready) {
             return;

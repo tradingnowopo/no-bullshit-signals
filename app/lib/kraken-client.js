@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 const KRAKEN_BASE_URL = "https://api.kraken.com";
 
 let lastNonce = 0;
+let privateRequestQueue = Promise.resolve();
 
 function nextNonce() {
   const now = Date.now() * 1000;
@@ -56,36 +57,45 @@ export function createKrakenSignature(path, payload, secret) {
     .digest("base64");
 }
 
-export async function krakenPrivate(endpoint, params = {}) {
-  const apiKey = process.env.KRAKEN_API_KEY;
-  const apiSecret = process.env.KRAKEN_API_SECRET;
+export function krakenPrivate(endpoint, params = {}) {
+  const execute = async () => {
+    const apiKey = process.env.KRAKEN_API_KEY;
+    const apiSecret = process.env.KRAKEN_API_SECRET;
 
-  if (!apiKey || !apiSecret) {
-    throw new Error("Missing KRAKEN_API_KEY or KRAKEN_API_SECRET");
-  }
+    if (!apiKey || !apiSecret) {
+      throw new Error("Missing KRAKEN_API_KEY or KRAKEN_API_SECRET");
+    }
 
-  const path = `/0/private/${endpoint}`;
-  const payload = { nonce: nextNonce(), ...params };
-  const encoded = new URLSearchParams(payload).toString();
-  const signature = createKrakenSignature(path, payload, apiSecret);
+    const path = `/0/private/${endpoint}`;
+    const payload = { nonce: nextNonce(), ...params };
+    const encoded = new URLSearchParams(payload).toString();
+    const signature = createKrakenSignature(path, payload, apiSecret);
 
-  const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "API-Key": apiKey,
-      "API-Sign": signature,
-      "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-    },
-    body: encoded,
-    cache: "no-store",
-  });
-  const data = await response.json().catch(() => null);
+    const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "API-Key": apiKey,
+        "API-Sign": signature,
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+      },
+      body: encoded,
+      cache: "no-store",
+    });
+    const data = await response.json().catch(() => null);
 
-  if (!response.ok || !data) {
-    throw new Error(`Kraken private ${endpoint} HTTP ${response.status}`);
-  }
+    if (!response.ok || !data) {
+      throw new Error(`Kraken private ${endpoint} HTTP ${response.status}`);
+    }
 
-  return assertKrakenResponse(data, endpoint);
+    return assertKrakenResponse(data, endpoint);
+  };
+
+  const pending = privateRequestQueue.then(execute, execute);
+  privateRequestQueue = pending.then(
+    () => undefined,
+    () => undefined
+  );
+  return pending;
 }
 
 export function getKrakenExecutionConfig() {
@@ -146,7 +156,18 @@ export function buildKrakenMarginPlan({
     ? pairSpec?.leverage_buy
     : pairSpec?.leverage_sell;
 
-  if (!Array.isArray(leverageList) || !leverageList.includes(requestedLeverage)) {
+  const leverage = Array.isArray(leverageList)
+    ? Math.max(
+        0,
+        ...leverageList.filter(
+          (value) =>
+            Number.isFinite(Number(value)) &&
+            Number(value) <= requestedLeverage
+        )
+      )
+    : 0;
+
+  if (leverage <= 0) {
     return {
       ok: false,
       stage: "LEVERAGE_NOT_AVAILABLE",
@@ -157,10 +178,10 @@ export function buildKrakenMarginPlan({
   const lotDecimals = Number(pairSpec?.lot_decimals);
   const orderMin = Number(pairSpec?.ordermin);
   const costMin = Number(pairSpec?.costmin || 0);
-  const exposureGBP = targetMarginGBP * requestedLeverage;
+  const exposureGBP = targetMarginGBP * leverage;
   const volume = floorToDecimals(exposureGBP / price, lotDecimals);
   const actualExposureGBP = volume * price;
-  const plannedMarginGBP = actualExposureGBP / requestedLeverage;
+  const plannedMarginGBP = actualExposureGBP / leverage;
 
   if (!Number.isFinite(volume) || volume <= 0 || volume < orderMin) {
     return { ok: false, stage: "MIN_VOLUME_BLOCK", volume, orderMin };
@@ -192,6 +213,6 @@ export function buildKrakenMarginPlan({
     targetMarginGBP,
     plannedMarginGBP,
     exposureGBP: actualExposureGBP,
-    leverage: requestedLeverage,
+    leverage,
   };
 }

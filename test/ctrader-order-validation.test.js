@@ -22,7 +22,7 @@ function payload(volume = 100) {
     entry: 70,
     sl: 69.5,
     actualMarginGBP: 10,
-    effectiveLeverage: 5,
+    effectiveLeverage: 10,
     issuedAt,
   };
 
@@ -38,7 +38,7 @@ function payload(volume = 100) {
     sl: 69.5,
     marketPrice: 70.01,
     actualMarginGBP: 10,
-    effectiveLeverage: 5,
+    effectiveLeverage: 10,
     signalTimestamp: new Date().toISOString(),
     sizingProof: {
       issuedAt,
@@ -71,4 +71,12 @@ test("WTI validation blocks volume changed after sizing", async () => {
   const result = await callOrder(payload(200));
   assert.equal(result.status, 409);
   assert.equal((await result.json()).stage, "SIZING_PROOF_BLOCK");
+});
+
+test("WTI validation blocks sizing below exactly 10x leverage", async () => {
+  const body = payload();
+  body.effectiveLeverage = 5;
+  const result = await callOrder(body);
+  assert.equal(result.status, 409);
+  assert.equal((await result.json()).stage, "LEVERAGE_ATTESTATION_BLOCK");
 });

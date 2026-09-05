@@ -45,6 +45,8 @@ export function getCTraderConfig() {
       process.env.NBS_LIVE_TRADING_ENABLED === "true",
     targetMarginGBP: 10,
     marginToleranceGBP: 0.01,
+    targetEffectiveLeverage: 10,
+    leverageTolerance: 0.05,
     maxEffectiveLeverage: 10,
   };
 }

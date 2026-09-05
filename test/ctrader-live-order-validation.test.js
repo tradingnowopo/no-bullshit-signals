@@ -26,7 +26,7 @@ test("LIVE WTI validation remains dry and accepts signed £10 sizing", async () 
     entry: 70,
     sl: 70.5,
     actualMarginGBP: 10,
-    effectiveLeverage: 5,
+    effectiveLeverage: 10,
     issuedAt,
   };
   const body = {
@@ -42,7 +42,7 @@ test("LIVE WTI validation remains dry and accepts signed £10 sizing", async () 
     sl: 70.5,
     marketPrice: 69.99,
     actualMarginGBP: 10,
-    effectiveLeverage: 5,
+    effectiveLeverage: 10,
     signalTimestamp: new Date().toISOString(),
     sizingProof: {
       issuedAt,

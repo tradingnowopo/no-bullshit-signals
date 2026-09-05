@@ -1,13 +1,14 @@
 import WebSocket from "ws";
+import { getCTraderConfig } from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
-
-const ACCOUNT_ID = 48342468;
-const SPOTCRUDE_SYMBOL_ID = 250;
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
+const ACCOUNT_ID = CTRADER.accountId;
+const SPOTCRUDE_SYMBOL_ID = CTRADER.symbolId;
 
 const OPEN_DELAY_MS = 2000;
 const TIMEOUT_MS = 30000;
@@ -496,7 +497,7 @@ results[period] =
               "CTRADER_BARS_READY",
 
             environment:
-              "DEMO",
+              CTRADER.environment,
 
             accountId:
               ACCOUNT_ID,

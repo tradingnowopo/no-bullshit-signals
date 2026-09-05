@@ -1,17 +1,18 @@
 import WebSocket from "ws";
+import { getCTraderConfig } from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // ==================================================
-// CTRADER DEMO - READ ONLY MARKET DATA
+// CTRADER - READ ONLY MARKET DATA
 // ==================================================
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
-
-const ACCOUNT_ID = 48342468;
-const SPOTCRUDE_SYMBOL_ID = 250;
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
+const ACCOUNT_ID = CTRADER.accountId;
+const SPOTCRUDE_SYMBOL_ID = CTRADER.symbolId;
 
 const ATTEMPT_TIMEOUT_MS = 25000;
 const CTRADER_OPEN_DELAY_MS = 2000;
@@ -456,7 +457,7 @@ function getSpotCrudeQuote({
               "SPOTCRUDE_MARKET_READY",
 
             environment:
-              "DEMO",
+              CTRADER.environment,
 
             accountId:
               ACCOUNT_ID,

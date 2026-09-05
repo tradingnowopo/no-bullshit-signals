@@ -1,14 +1,18 @@
 import WebSocket from "ws";
+import {
+  getCTraderConfig,
+  validateRequestedEnvironment,
+} from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
-
-const ACCOUNT_ID = 48342468;
-const SYMBOL_ID = 250;
-const SYMBOL_NAME = "SpotCrude";
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
+const ACCOUNT_ID = CTRADER.accountId;
+const SYMBOL_ID = CTRADER.symbolId;
+const SYMBOL_NAME = CTRADER.symbolName;
 
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -125,15 +129,13 @@ export async function POST(request) {
   // REQUEST VALIDATION
   // ==========================================================
 
-  if (
-    body?.environment !== "DEMO"
-  ) {
+  if (!validateRequestedEnvironment(body?.environment, CTRADER.environment)) {
     return Response.json(
       {
         ok: false,
         stage: "VALIDATION",
         error:
-          "Only DEMO environment is allowed",
+          `Requested environment must match configured ${CTRADER.environment} environment`,
       },
       { status: 400 }
     );
@@ -145,11 +147,10 @@ export async function POST(request) {
   const sl =
     num(body?.sl);
 
-  const tp =
-    num(body?.tp);
-
   const validateOnly =
     body?.validateOnly === true;
+
+  const dryRun = body?.dryRun === true;
 
   if (
     !Number.isInteger(positionId) ||
@@ -181,32 +182,36 @@ export async function POST(request) {
     );
   }
 
-  if (
-    tp === null ||
-    tp <= 0
-  ) {
+  if (body?.tp !== undefined && body?.tp !== null && body?.tp !== "") {
     return Response.json(
       {
         ok: false,
-        stage: "VALIDATION",
+        stage: "TAKE_PROFIT_ORDER_FORBIDDEN",
         error:
-          "tp must be a positive number",
+          "Broker take-profit orders are disabled. TP1/TP2 are Telegram-only.",
       },
       { status: 400 }
     );
   }
 
-  if (sl === tp) {
+  if (
+    CTRADER.live &&
+    !validateOnly &&
+    !dryRun &&
+    (!CTRADER.liveTradingEnabled || body?.liveConfirm !== true)
+  ) {
     return Response.json(
       {
         ok: false,
-        stage: "VALIDATION",
-        error:
-          "SL and TP cannot be equal",
+        stage: "LIVE_KILL_SWITCH",
+        error: "LIVE modification blocked by kill switch",
+        modifyWouldBeSent: false,
       },
-      { status: 400 }
+      { status: 409 }
     );
   }
+
+  const effectiveValidateOnly = validateOnly || dryRun;
 
   // ==========================================================
   // CTRADER
@@ -666,33 +671,6 @@ export async function POST(request) {
                   direction,
                   entry,
                   sl,
-                  tp,
-
-                  modifyWouldBeSent:
-                    false,
-                },
-                409
-              );
-
-              return;
-            }
-
-            if (!(tp > entry)) {
-              finish(
-                {
-                  ok: false,
-
-                  stage:
-                    "INVALID_LONG_TP",
-
-                  error:
-                    "LONG take profit must be above position entry",
-
-                  positionId,
-                  direction,
-                  entry,
-                  sl,
-                  tp,
 
                   modifyWouldBeSent:
                     false,
@@ -722,33 +700,6 @@ export async function POST(request) {
                   direction,
                   entry,
                   sl,
-                  tp,
-
-                  modifyWouldBeSent:
-                    false,
-                },
-                409
-              );
-
-              return;
-            }
-
-            if (!(tp < entry)) {
-              finish(
-                {
-                  ok: false,
-
-                  stage:
-                    "INVALID_SHORT_TP",
-
-                  error:
-                    "SHORT take profit must be below position entry",
-
-                  positionId,
-                  direction,
-                  entry,
-                  sl,
-                  tp,
 
                   modifyWouldBeSent:
                     false,
@@ -792,18 +743,19 @@ export async function POST(request) {
           // but 2110 is NOT sent.
           // ====================================================
 
-          if (validateOnly) {
+          if (effectiveValidateOnly) {
             finish({
               ok: true,
 
               stage:
                 "VALIDATION_OK",
 
-              validateOnly:
-                true,
+              validateOnly: true,
+
+              dryRun,
 
               environment:
-                "DEMO",
+                CTRADER.environment,
 
               accountId:
                 ACCOUNT_ID,
@@ -823,8 +775,7 @@ export async function POST(request) {
               requestedStopLoss:
                 sl,
 
-              requestedTakeProfit:
-                tp,
+              requestedTakeProfit: null,
 
               positionValidated:
                 true,
@@ -852,9 +803,6 @@ export async function POST(request) {
 
               stopLoss:
                 sl,
-
-              takeProfit:
-                tp,
             },
             `NBS_MODIFY_${Date.now()}`
           );
@@ -915,7 +863,7 @@ export async function POST(request) {
                 "POSITION_MODIFIED",
 
               environment:
-                "DEMO",
+                CTRADER.environment,
 
               accountId:
                 ACCOUNT_ID,
@@ -941,8 +889,7 @@ export async function POST(request) {
               requestedStopLoss:
                 sl,
 
-              requestedTakeProfit:
-                tp,
+              requestedTakeProfit: null,
 
               position:
                 p.position ??

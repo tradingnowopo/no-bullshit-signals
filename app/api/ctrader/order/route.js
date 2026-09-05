@@ -1,16 +1,22 @@
 import WebSocket from "ws";
+import {
+  getCTraderConfig,
+  validateRequestedEnvironment,
+} from "../../../lib/ctrader-config.js";
+import { verifySizingProof } from "../../../lib/ctrader-sizing-proof.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
 const WS_CONNECT_TIMEOUT_MS = 10000;
 const WS_AUTH_DELAY_MS = 500;
 
-const ACCOUNT_ID = 48342468;
-const SYMBOL_ID = 250;
-const SYMBOL_NAME = "SpotCrude";
+const ACCOUNT_ID = CTRADER.accountId;
+const SYMBOL_ID = CTRADER.symbolId;
+const SYMBOL_NAME = CTRADER.symbolName;
 
 // Statusy, które mogą zostać bezpiecznie ponowione.
 // Warunek dodatkowy: rekord NIE może posiadać żadnego broker ID.
@@ -124,13 +130,28 @@ if (tradeReady !== true) {
   const sl = Number(body?.sl);
   const tp1 = Number(body?.tp1);
   const tp2 = Number(body?.tp2);
+  const marketPrice = Number(body?.marketPrice);
+  const actualMarginGBP = Number(
+    body?.executionPolicy?.actualMarginGBP ??
+    body?.positionSizing?.actualMarginGBP ??
+    body?.actualMarginGBP
+  );
+  const effectiveLeverage = Number(
+    body?.executionPolicy?.leverage ??
+    body?.positionSizing?.effectiveLeverage ??
+    body?.effectiveLeverage
+  );
+  const signalTimestampMs = Date.parse(
+    body?.signalTimestamp ?? body?.signal_time ?? ""
+  );
+  const sizingProofIssuedAt = Number(body?.sizingProof?.issuedAt);
 
-  if (body?.environment !== "DEMO") {
+  if (!validateRequestedEnvironment(body?.environment, CTRADER.environment)) {
     return Response.json(
       {
         ok: false,
         stage: "VALIDATION",
-        error: "Only DEMO environment is allowed",
+        error: `Requested environment must match configured ${CTRADER.environment} environment`,
       },
       { status: 400 }
     );
@@ -155,6 +176,121 @@ if (tradeReady !== true) {
         error: "direction must be LONG or SHORT",
       },
       { status: 400 }
+    );
+  }
+
+  if (!Number.isFinite(entry) || entry <= 0 || !Number.isFinite(sl) || sl <= 0) {
+    return Response.json(
+      { ok: false, stage: "SL_REQUIRED", error: "Valid entry and SL are mandatory" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    (direction === "LONG" && sl >= entry) ||
+    (direction === "SHORT" && sl <= entry)
+  ) {
+    return Response.json(
+      { ok: false, stage: "INVALID_SL_STRUCTURE", error: "SL is on the wrong side of entry" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    !Number.isFinite(actualMarginGBP) ||
+    Math.abs(actualMarginGBP - CTRADER.targetMarginGBP) > CTRADER.marginToleranceGBP
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "MARGIN_ATTESTATION_BLOCK",
+        error: "Order requires broker sizing proof for exactly £10 margin",
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
+
+  if (
+    !Number.isFinite(effectiveLeverage) ||
+    effectiveLeverage <= 0 ||
+    effectiveLeverage > CTRADER.maxEffectiveLeverage
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "LEVERAGE_CAP_BLOCK",
+        error: "Effective leverage exceeds 10x or is missing",
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
+
+  const proofPayload = {
+    environment: CTRADER.environment,
+    accountId: ACCOUNT_ID,
+    symbolId: SYMBOL_ID,
+    direction,
+    volume,
+    entry,
+    sl,
+    actualMarginGBP,
+    effectiveLeverage,
+    issuedAt: sizingProofIssuedAt,
+  };
+
+  if (!verifySizingProof(
+    proofPayload,
+    body?.sizingProof?.signature,
+    executorKey,
+    60000
+  )) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "SIZING_PROOF_BLOCK",
+        error: "Missing, stale, or mismatched broker sizing proof",
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
+
+  const maxSignalAgeMs = Number(process.env.NBS_MAX_SIGNAL_AGE_MS || 180000);
+  if (
+    !Number.isFinite(signalTimestampMs) ||
+    Date.now() - signalTimestampMs < -30000 ||
+    Date.now() - signalTimestampMs > maxSignalAgeMs
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "STALE_SIGNAL_BLOCK",
+        error: "Signal timestamp is missing, in the future, or stale",
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
+
+  const stopDistance = Math.abs(entry - sl);
+  const maxEntryDrift = Math.min(0.08, Math.max(0.02, stopDistance * 0.25));
+  if (
+    !Number.isFinite(marketPrice) ||
+    Math.abs(marketPrice - entry) > maxEntryDrift
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "ENTRY_DRIFT_BLOCK",
+        error: "Live market price moved too far from planned entry",
+        entry,
+        marketPrice: Number.isFinite(marketPrice) ? marketPrice : null,
+        maxEntryDrift,
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
     );
   }
 
@@ -189,6 +325,30 @@ if (tradeReady !== true) {
   const validateOnly = body?.validateOnly === true;
   const preflightOnly = body?.preflightOnly === true;
   const idempotencyTestOnly = body?.idempotencyTestOnly === true;
+  const dryRun = body?.dryRun === true;
+
+  if (
+    CTRADER.live &&
+    !validateOnly &&
+    !preflightOnly &&
+    !idempotencyTestOnly &&
+    !dryRun &&
+    (!CTRADER.liveTradingEnabled || body?.liveConfirm !== true)
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "LIVE_KILL_SWITCH",
+        error:
+          "LIVE order blocked. Enable NBS_LIVE_TRADING_ENABLED and send liveConfirm=true.",
+        environment: CTRADER.environment,
+        orderWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
+
+  const effectivePreflightOnly = preflightOnly || dryRun;
 
   // ==================================================
   // VALIDATION ONLY
@@ -199,7 +359,7 @@ if (tradeReady !== true) {
       ok: true,
       stage: "VALIDATION_OK",
       validateOnly: true,
-      environment: "DEMO",
+      environment: CTRADER.environment,
       accountId: ACCOUNT_ID,
       symbol: SYMBOL_NAME,
       symbolId: SYMBOL_ID,
@@ -220,9 +380,13 @@ if (tradeReady !== true) {
   // SUPABASE HELPERS
   // ==================================================
 
+  const executionTable = CTRADER.live
+    ? "signal_execution_guard"
+    : "ctrader_signal_executions";
+
   async function getExecution() {
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/ctrader_signal_executions?signal_id=eq.${encodeURIComponent(
+      `${supabaseUrl}/rest/v1/${executionTable}?signal_id=eq.${encodeURIComponent(
         signalId
       )}&select=*`,
       {
@@ -251,8 +415,22 @@ if (tradeReady !== true) {
   }
 
   async function updateExecution(status, fields = {}) {
+    const liveFields = CTRADER.live
+      ? {
+          ...(fields.position_id !== undefined
+            ? { position_id: fields.position_id === null ? null : String(fields.position_id) }
+            : {}),
+          ...(fields.order_id !== undefined
+            ? { order_id: fields.order_id === null ? null : String(fields.order_id) }
+            : {}),
+          ...(fields.error_message !== undefined || fields.error_code !== undefined
+            ? { failure_reason: fields.error_message ?? fields.error_code ?? null }
+            : {}),
+        }
+      : fields;
+
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/ctrader_signal_executions?signal_id=eq.${encodeURIComponent(
+      `${supabaseUrl}/rest/v1/${executionTable}?signal_id=eq.${encodeURIComponent(
         signalId
       )}`,
       {
@@ -266,7 +444,7 @@ if (tradeReady !== true) {
         body: JSON.stringify({
           status,
           updated_at: new Date().toISOString(),
-          ...fields,
+          ...liveFields,
         }),
       }
     );
@@ -284,9 +462,32 @@ if (tradeReady !== true) {
   // IDEMPOTENCY CLAIM
   // ==================================================
 
-  if (!preflightOnly) {
+  if (!effectivePreflightOnly) {
+    const claimPayload = CTRADER.live
+      ? {
+          signal_id: signalId,
+          environment: CTRADER.environment,
+          symbol,
+          direction,
+          status: idempotencyTestOnly ? "CLAIMED_TEST" : "CLAIMED",
+          failure_reason: null,
+        }
+      : {
+          signal_id: signalId,
+          environment: CTRADER.environment,
+          symbol,
+          direction,
+          status: idempotencyTestOnly ? "CLAIMED_TEST" : "CLAIMED",
+          entry: Number.isFinite(entry) ? entry : null,
+          sl: Number.isFinite(sl) ? sl : null,
+          tp1: Number.isFinite(tp1) ? tp1 : null,
+          tp2: Number.isFinite(tp2) ? tp2 : null,
+          error_code: null,
+          error_message: null,
+        };
+
     const claimResponse = await fetch(
-      `${supabaseUrl}/rest/v1/ctrader_signal_executions`,
+      `${supabaseUrl}/rest/v1/${executionTable}`,
       {
         method: "POST",
         headers: {
@@ -295,21 +496,7 @@ if (tradeReady !== true) {
           "Content-Type": "application/json",
           Prefer: "return=representation",
         },
-        body: JSON.stringify({
-          signal_id: signalId,
-          environment: "DEMO",
-          symbol,
-          direction,
-          status: idempotencyTestOnly
-            ? "CLAIMED_TEST"
-            : "CLAIMED",
-          entry: Number.isFinite(entry) ? entry : null,
-          sl: Number.isFinite(sl) ? sl : null,
-          tp1: Number.isFinite(tp1) ? tp1 : null,
-          tp2: Number.isFinite(tp2) ? tp2 : null,
-          error_code: null,
-          error_message: null,
-        }),
+        body: JSON.stringify(claimPayload),
       }
     );
 
@@ -434,7 +621,7 @@ if (tradeReady !== true) {
         ok: true,
         stage: "IDEMPOTENCY_CLAIM_OK",
         signalId,
-        environment: "DEMO",
+        environment: CTRADER.environment,
         orderWouldBeSent: false,
       });
     }
@@ -505,7 +692,7 @@ if (tradeReady !== true) {
     // ==================================================
 
     const timeout = setTimeout(async () => {
-      if (!preflightOnly) {
+      if (!effectivePreflightOnly) {
         try {
           const timeoutStatus = orderSendStarted
             ? "ORDER_STATE_UNCERTAIN"
@@ -675,7 +862,7 @@ if (tradeReady !== true) {
         if (openSpotCrude.length > 0) {
           log.push("DUPLICATE_BLOCKED");
 
-          if (!preflightOnly) {
+          if (!effectivePreflightOnly) {
             try {
               await updateExecution(
                 "DUPLICATE_POSITION",
@@ -702,7 +889,7 @@ if (tradeReady !== true) {
             {
               ok: false,
               stage: "DUPLICATE_BLOCKED",
-              environment: "DEMO",
+              environment: CTRADER.environment,
               accountId: ACCOUNT_ID,
               symbol: SYMBOL_NAME,
               symbolId: SYMBOL_ID,
@@ -751,13 +938,13 @@ if (tradeReady !== true) {
         // PREFLIGHT
         // ==================================================
 
-        if (preflightOnly) {
+        if (effectivePreflightOnly) {
           log.push("PREFLIGHT_OK");
 
           finish({
             ok: true,
             stage: "PREFLIGHT_OK",
-            environment: "DEMO",
+            environment: CTRADER.environment,
             accountId: ACCOUNT_ID,
             symbol: SYMBOL_NAME,
             symbolId: SYMBOL_ID,
@@ -867,7 +1054,7 @@ if (tradeReady !== true) {
             volume,
 
             label:
-              "NBS_DEMO",
+              CTRADER.live ? "NBS_LIVE" : "NBS_DEMO",
           },
           `NBS_ORDER_${Date.now()}`
         );
@@ -941,7 +1128,7 @@ if (tradeReady !== true) {
             ok: true,
             stage: "ORDER_FILLED",
 
-            environment: "DEMO",
+            environment: CTRADER.environment,
 
             accountId: ACCOUNT_ID,
 
@@ -1068,7 +1255,7 @@ if (tradeReady !== true) {
               "RETRY_WHEN_MARKET_OPENS";
           }
 
-          if (!preflightOnly) {
+          if (!effectivePreflightOnly) {
             try {
               await updateExecution(
                 executionStatus,
@@ -1124,7 +1311,7 @@ if (tradeReady !== true) {
         // Never automatically retry.
         // ==================================================
 
-        if (!preflightOnly) {
+        if (!effectivePreflightOnly) {
           try {
             await updateExecution(
               "ORDER_STATE_UNCERTAIN",
@@ -1185,7 +1372,7 @@ if (tradeReady !== true) {
 
     ws.on("error", async (err) => {
       if (
-        !preflightOnly &&
+        !effectivePreflightOnly &&
         orderSendStarted
       ) {
         try {

@@ -1,17 +1,19 @@
 
 import WebSocket from "ws";
+import { getCTraderConfig } from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
 
 export async function GET() {
   const clientId = process.env.CTRADER_CLIENT_ID;
   const clientSecret = process.env.CTRADER_CLIENT_SECRET;
   const accessToken = process.env.CTRADER_ACCESS_TOKEN;
-  const accountId = Number(process.env.CTRADER_ACCOUNT_ID);
+  const accountId = CTRADER.accountId;
 
   const log = [];
 

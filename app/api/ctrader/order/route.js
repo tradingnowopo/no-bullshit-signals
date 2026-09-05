@@ -4,6 +4,7 @@ import {
   validateRequestedEnvironment,
 } from "../../../lib/ctrader-config.js";
 import { verifySizingProof } from "../../../lib/ctrader-sizing-proof.js";
+import { buildProtectedMarketOrder } from "../../../lib/ctrader-order-payload.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -1040,22 +1041,15 @@ if (tradeReady !== true) {
 
         send(
           2106,
-          {
-            ctidTraderAccountId:
-              ACCOUNT_ID,
-
-            symbolId:
-              SYMBOL_ID,
-
-            orderType: 1,
-
+          buildProtectedMarketOrder({
+            accountId: ACCOUNT_ID,
+            symbolId: SYMBOL_ID,
             tradeSide,
-
             volume,
-
-            label:
-              CTRADER.live ? "NBS_LIVE" : "NBS_DEMO",
-          },
+            label: CTRADER.live ? "NBS_LIVE" : "NBS_DEMO",
+            entry,
+            stopLoss: sl,
+          }),
           `NBS_ORDER_${Date.now()}`
         );
 

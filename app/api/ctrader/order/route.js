@@ -89,6 +89,7 @@ export async function POST(request) {
   const symbol = String(body?.symbol || "").toUpperCase();
   const signalId = String(body?.signalId || "").trim();
   const tradeReady = body?.trade_ready;
+  const sizingOnly = body?.sizingOnly === true;
 
 if (tradeReady !== true) {
   return Response.json(
@@ -115,6 +116,7 @@ if (tradeReady !== true) {
   }
 
   const volume = Number(body?.volume ?? 100);
+  const sizingVolumes = Array.from({ length: 200 }, (_, index) => (index + 1) * 100);
 
   const entry = Number(body?.entry);
   const sl = Number(body?.sl);
@@ -187,7 +189,9 @@ if (tradeReady !== true) {
   }
 
   if (
+    !sizingOnly &&
     !Number.isFinite(actualMarginGBP) ||
+    !sizingOnly &&
     Math.abs(actualMarginGBP - CTRADER.targetMarginGBP) > CTRADER.marginToleranceGBP
   ) {
     return Response.json(
@@ -202,7 +206,9 @@ if (tradeReady !== true) {
   }
 
   if (
+    !sizingOnly &&
     !Number.isFinite(effectiveLeverage) ||
+    !sizingOnly &&
     Math.abs(effectiveLeverage - CTRADER.targetEffectiveLeverage) >
       CTRADER.leverageTolerance
   ) {
@@ -230,7 +236,7 @@ if (tradeReady !== true) {
     issuedAt: sizingProofIssuedAt,
   };
 
-  if (!verifySizingProof(
+  if (!sizingOnly && !verifySizingProof(
     proofPayload,
     body?.sizingProof?.signature,
     executorKey,
@@ -338,7 +344,7 @@ if (tradeReady !== true) {
     );
   }
 
-  const effectivePreflightOnly = preflightOnly || dryRun;
+  const effectivePreflightOnly = preflightOnly || dryRun || sizingOnly;
 
   // Supabase is an execution/idempotency dependency, not a read-only
   // validation or broker-preflight dependency. This permits an isolated LIVE
@@ -841,6 +847,20 @@ if (tradeReady !== true) {
       if (msg.payloadType === 2103) {
         log.push("ACCOUNT_AUTH_OK");
 
+        if (sizingOnly) {
+          send(
+            2139,
+            {
+              ctidTraderAccountId: ACCOUNT_ID,
+              symbolId: SYMBOL_ID,
+              volume: sizingVolumes,
+            },
+            `NBS_EXPECTED_MARGIN_${Date.now()}`
+          );
+          log.push("2139_EXPECTED_MARGIN_SEND_CALLED");
+          return;
+        }
+
         send(
           2124,
           {
@@ -850,6 +870,61 @@ if (tradeReady !== true) {
         );
 
         log.push("2124_SEND_CALLED");
+        return;
+      }
+
+      // ==================================================
+      // BROKER EXPECTED MARGIN (READ-ONLY)
+      // ==================================================
+
+      if (msg.payloadType === 2140 && sizingOnly) {
+        const moneyDigits = Number(msg.payload?.moneyDigits ?? 0);
+        const divisor = 10 ** moneyDigits;
+        const sideField = direction === "LONG" ? "buyMargin" : "sellMargin";
+        const estimates = (msg.payload?.margin || [])
+          .map((item) => ({
+            volume: Number(item?.volume),
+            marginGBP: Number(item?.[sideField]) / divisor,
+          }))
+          .filter(
+            (item) =>
+              Number.isFinite(item.volume) &&
+              Number.isFinite(item.marginGBP) &&
+              item.volume > 0 &&
+              item.marginGBP >= 0
+          );
+
+        const ranked = estimates
+          .map((item) => ({
+            ...item,
+            differenceGBP: Math.abs(item.marginGBP - CTRADER.targetMarginGBP),
+          }))
+          .sort((a, b) => a.differenceGBP - b.differenceGBP);
+        const closest = ranked[0] || null;
+        const exact =
+          closest && closest.differenceGBP <= CTRADER.marginToleranceGBP
+            ? closest
+            : null;
+
+        log.push("EXPECTED_MARGIN_RECEIVED");
+        log.push(exact ? "EXACT_MARGIN_FOUND" : "EXACT_MARGIN_UNAVAILABLE");
+
+        finish({
+          ok: Boolean(exact),
+          stage: exact ? "EXACT_MARGIN_FOUND" : "EXACT_MARGIN_UNAVAILABLE",
+          environment: CTRADER.environment,
+          accountId: ACCOUNT_ID,
+          symbol: SYMBOL_NAME,
+          symbolId: SYMBOL_ID,
+          direction,
+          targetMarginGBP: CTRADER.targetMarginGBP,
+          toleranceGBP: CTRADER.marginToleranceGBP,
+          exact,
+          closest,
+          checkedVolumes: estimates.length,
+          orderWouldBeSent: false,
+          payload2106Sent: false,
+        }, exact ? 200 : 409);
         return;
       }
 

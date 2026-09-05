@@ -40,6 +40,8 @@ function runCTraderAttempt({
   direction,
   targetMarginGBP,
   marginToleranceGBP,
+  targetEffectiveLeverage,
+  leverageTolerance,
   maxEffectiveLeverage,
   sizingRequested,
   attemptNumber,
@@ -449,12 +451,18 @@ function runCTraderAttempt({
           .filter((row) =>
             Math.abs(row.actualMarginGBP - targetMarginGBP) <=
               marginToleranceGBP &&
+            Math.abs(row.effectiveLeverage - targetEffectiveLeverage) <=
+              leverageTolerance &&
             row.effectiveLeverage <= maxEffectiveLeverage
           )
-          .sort((a, b) =>
-            Math.abs(a.actualMarginGBP - targetMarginGBP) -
-            Math.abs(b.actualMarginGBP - targetMarginGBP)
-          );
+          .sort((a, b) => {
+            const leverageDistance =
+              Math.abs(a.effectiveLeverage - targetEffectiveLeverage) -
+              Math.abs(b.effectiveLeverage - targetEffectiveLeverage);
+            if (leverageDistance !== 0) return leverageDistance;
+            return Math.abs(a.actualMarginGBP - targetMarginGBP) -
+              Math.abs(b.actualMarginGBP - targetMarginGBP);
+          });
 
         if (eligible.length === 0) {
           const nearest = evaluated
@@ -468,9 +476,11 @@ function runCTraderAttempt({
             retryable: false,
             stage: "EXACT_MARGIN_UNAVAILABLE",
             error:
-              "Broker volume steps cannot produce exactly £10 margin within tolerance",
+              "Broker volume steps cannot produce exactly £10 margin at 10x leverage within tolerance",
             targetMarginGBP,
             marginToleranceGBP,
+            targetEffectiveLeverage,
+            leverageTolerance,
             maxEffectiveLeverage,
             nearest,
           });
@@ -500,6 +510,8 @@ function runCTraderAttempt({
             marginToleranceGBP,
             exposureGBP: Number(selected.exposureGBP.toFixed(2)),
             effectiveLeverage: Number(selected.effectiveLeverage.toFixed(4)),
+            targetEffectiveLeverage,
+            leverageTolerance,
             maxEffectiveLeverage,
             source: "CTRADER_EXPECTED_MARGIN",
           },
@@ -1868,6 +1880,8 @@ export async function GET(request) {
         direction,
         targetMarginGBP: CTRADER.targetMarginGBP,
         marginToleranceGBP: CTRADER.marginToleranceGBP,
+        targetEffectiveLeverage: CTRADER.targetEffectiveLeverage,
+        leverageTolerance: CTRADER.leverageTolerance,
         maxEffectiveLeverage: CTRADER.maxEffectiveLeverage,
 
         sizingRequested,

@@ -214,14 +214,14 @@ if (tradeReady !== true) {
 
   if (
     !Number.isFinite(effectiveLeverage) ||
-    effectiveLeverage <= 0 ||
-    effectiveLeverage > CTRADER.maxEffectiveLeverage
+    Math.abs(effectiveLeverage - CTRADER.targetEffectiveLeverage) >
+      CTRADER.leverageTolerance
   ) {
     return Response.json(
       {
         ok: false,
-        stage: "LEVERAGE_CAP_BLOCK",
-        error: "Effective leverage exceeds 10x or is missing",
+        stage: "LEVERAGE_ATTESTATION_BLOCK",
+        error: "Order requires broker sizing proof for exactly 10x leverage",
         orderWouldBeSent: false,
       },
       { status: 409 }

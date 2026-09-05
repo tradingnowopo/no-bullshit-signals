@@ -51,17 +51,6 @@ export async function POST(request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return Response.json(
-      {
-        ok: false,
-        stage: "ENV",
-        error: "Missing Supabase executor environment variables",
-      },
-      { status: 500 }
-    );
-  }
-
   const clientId = process.env.CTRADER_CLIENT_ID;
   const clientSecret = process.env.CTRADER_CLIENT_SECRET;
   const accessToken = process.env.CTRADER_ACCESS_TOKEN;
@@ -350,6 +339,25 @@ if (tradeReady !== true) {
   }
 
   const effectivePreflightOnly = preflightOnly || dryRun;
+
+  // Supabase is an execution/idempotency dependency, not a read-only
+  // validation or broker-preflight dependency. This permits an isolated LIVE
+  // connectivity check while the kill switch remains closed.
+  if (
+    !validateOnly &&
+    !effectivePreflightOnly &&
+    (!supabaseUrl || !supabaseServiceKey)
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "ENV",
+        error: "Missing Supabase executor environment variables",
+        orderWouldBeSent: false,
+      },
+      { status: 500 }
+    );
+  }
 
   // ==================================================
   // VALIDATION ONLY

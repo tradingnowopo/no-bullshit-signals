@@ -34,15 +34,17 @@ test("creates a £10 margin plan at exactly 10x", () => {
   assert.equal(plan.leverage, 10);
 });
 
-test("blocks when the pair does not offer 10x", () => {
+test("uses the highest available leverage up to 10x", () => {
   const plan = buildKrakenMarginPlan({
     price: 50000,
     pairSpec: { ...pair, leverage_buy: [2, 3, 5] },
     direction: "LONG",
   });
 
-  assert.equal(plan.ok, false);
-  assert.equal(plan.stage, "LEVERAGE_NOT_AVAILABLE");
+  assert.equal(plan.ok, true);
+  assert.equal(plan.leverage, 5);
+  assert.equal(plan.plannedMarginGBP, 10);
+  assert.equal(plan.volume, "0.00100000");
 });
 
 test("Kraken signing matches the official authentication vector", () => {

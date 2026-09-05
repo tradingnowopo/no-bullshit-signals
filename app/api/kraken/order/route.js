@@ -148,6 +148,28 @@ export async function POST(request) {
     return response({ ok: false, ...plan, pair: market.pair, orderWouldBeSent: false }, 409);
   }
 
+  const priceDecimals = Number(pairSpec?.pair_decimals);
+  const priceFactor = 10 ** priceDecimals;
+  const brokerSl = direction === "LONG"
+    ? Math.floor((sl + Number.EPSILON) * priceFactor) / priceFactor
+    : Math.ceil((sl - Number.EPSILON) * priceFactor) / priceFactor;
+
+  if (
+    !Number.isInteger(priceDecimals) ||
+    priceDecimals < 0 ||
+    !Number.isFinite(brokerSl) ||
+    brokerSl <= 0 ||
+    (direction === "LONG" && brokerSl >= entry) ||
+    (direction === "SHORT" && brokerSl <= entry)
+  ) {
+    return response({
+      ok: false,
+      stage: "SL_PRECISION_BLOCK",
+      error: "SL cannot be normalized safely for this Kraken market",
+      orderWouldBeSent: false,
+    }, 409);
+  }
+
   const order = {
     pair: market.pair,
     type: direction === "LONG" ? "buy" : "sell",
@@ -155,8 +177,7 @@ export async function POST(request) {
     volume: plan.volume,
     leverage: String(plan.leverage),
     "close[ordertype]": "stop-loss",
-    "close[price]": String(sl),
-    cl_ord_id: shortClientOrderId(signalId),
+    "close[price]": String(brokerSl),
     deadline: new Date(Date.now() + 15000).toISOString(),
     validate: dryRun ? "true" : "false",
   };
@@ -179,7 +200,9 @@ export async function POST(request) {
           exposureGBP: Number(plan.exposureGBP.toFixed(4)),
           entry,
           marketPrice,
-          sl,
+          sl: brokerSl,
+          requestedSl: sl,
+          slPriceDecimals: priceDecimals,
           tpOrders: false,
         },
       });

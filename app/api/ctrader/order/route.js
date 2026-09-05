@@ -3,7 +3,10 @@ import {
   getCTraderConfig,
   validateRequestedEnvironment,
 } from "../../../lib/ctrader-config.js";
-import { verifySizingProof } from "../../../lib/ctrader-sizing-proof.js";
+import {
+  createSizingProof,
+  verifySizingProof,
+} from "../../../lib/ctrader-sizing-proof.js";
 import { buildProtectedMarketOrder } from "../../../lib/ctrader-order-payload.js";
 
 export const runtime = "nodejs";
@@ -190,15 +193,15 @@ if (tradeReady !== true) {
 
   if (
     !sizingOnly &&
-    !Number.isFinite(actualMarginGBP) ||
-    !sizingOnly &&
-    Math.abs(actualMarginGBP - CTRADER.targetMarginGBP) > CTRADER.marginToleranceGBP
+    (!Number.isFinite(actualMarginGBP) ||
+      actualMarginGBP <= 0 ||
+      actualMarginGBP > CTRADER.targetMarginGBP + CTRADER.marginToleranceGBP)
   ) {
     return Response.json(
       {
         ok: false,
         stage: "MARGIN_ATTESTATION_BLOCK",
-        error: "Order requires broker sizing proof for exactly £10 margin",
+        error: "Order requires broker sizing proof for positive margin not exceeding £10",
         orderWouldBeSent: false,
       },
       { status: 409 }
@@ -207,16 +210,15 @@ if (tradeReady !== true) {
 
   if (
     !sizingOnly &&
-    !Number.isFinite(effectiveLeverage) ||
-    !sizingOnly &&
-    Math.abs(effectiveLeverage - CTRADER.targetEffectiveLeverage) >
-      CTRADER.leverageTolerance
+    (!Number.isFinite(effectiveLeverage) ||
+      effectiveLeverage <= 0 ||
+      effectiveLeverage > CTRADER.maxEffectiveLeverage + CTRADER.leverageTolerance)
   ) {
     return Response.json(
       {
         ok: false,
         stage: "LEVERAGE_ATTESTATION_BLOCK",
-        error: "Order requires broker sizing proof for exactly 10x leverage",
+        error: "Order requires broker sizing proof for leverage no greater than 10x",
         orderWouldBeSent: false,
       },
       { status: 409 }
@@ -662,6 +664,7 @@ if (tradeReady !== true) {
     // Retry the 2100 application-auth request on the same socket before
     // touching execution state. This is safe because 2106 has not been sent.
     let appAuthAttempts = 0;
+    let brokerEffectiveLeverage = null;
     const MAX_APP_AUTH_ATTEMPTS = 3;
     const APP_AUTH_RETRY_DELAY_MS = 2000;
     let appAuthRetryTimer = null;
@@ -849,15 +852,13 @@ if (tradeReady !== true) {
 
         if (sizingOnly) {
           send(
-            2139,
+            2121,
             {
               ctidTraderAccountId: ACCOUNT_ID,
-              symbolId: SYMBOL_ID,
-              volume: sizingVolumes,
             },
-            `NBS_EXPECTED_MARGIN_${Date.now()}`
+            `NBS_TRADER_${Date.now()}`
           );
-          log.push("2139_EXPECTED_MARGIN_SEND_CALLED");
+          log.push("2121_TRADER_SEND_CALLED");
           return;
         }
 
@@ -870,6 +871,42 @@ if (tradeReady !== true) {
         );
 
         log.push("2124_SEND_CALLED");
+        return;
+      }
+
+      if (msg.payloadType === 2122 && sizingOnly) {
+        brokerEffectiveLeverage = Number(msg.payload?.trader?.leverageInCents) / 100;
+
+        if (
+          !Number.isFinite(brokerEffectiveLeverage) ||
+          brokerEffectiveLeverage <= 0 ||
+          brokerEffectiveLeverage > CTRADER.maxEffectiveLeverage + CTRADER.leverageTolerance
+        ) {
+          log.push("LEVERAGE_CAP_BLOCK");
+          finish({
+            ok: false,
+            stage: "LEVERAGE_CAP_BLOCK",
+            brokerEffectiveLeverage: Number.isFinite(brokerEffectiveLeverage)
+              ? brokerEffectiveLeverage
+              : null,
+            maxEffectiveLeverage: CTRADER.maxEffectiveLeverage,
+            orderWouldBeSent: false,
+            payload2106Sent: false,
+          }, 409);
+          return;
+        }
+
+        log.push("BROKER_LEVERAGE_VERIFIED");
+        send(
+          2139,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
+            symbolId: SYMBOL_ID,
+            volume: sizingVolumes,
+          },
+          `NBS_EXPECTED_MARGIN_${Date.now()}`
+        );
+        log.push("2139_EXPECTED_MARGIN_SEND_CALLED");
         return;
       }
 
@@ -895,23 +932,44 @@ if (tradeReady !== true) {
           );
 
         const ranked = estimates
+          .filter(
+            (item) =>
+              item.marginGBP <= CTRADER.targetMarginGBP + CTRADER.marginToleranceGBP
+          )
           .map((item) => ({
             ...item,
-            differenceGBP: Math.abs(item.marginGBP - CTRADER.targetMarginGBP),
+            differenceGBP: CTRADER.targetMarginGBP - item.marginGBP,
           }))
           .sort((a, b) => a.differenceGBP - b.differenceGBP);
-        const closest = ranked[0] || null;
-        const exact =
-          closest && closest.differenceGBP <= CTRADER.marginToleranceGBP
-            ? closest
-            : null;
+        const selected = ranked[0] || null;
+        const proofIssuedAt = Date.now();
+        const sizingProof = selected
+          ? {
+              issuedAt: proofIssuedAt,
+              signature: createSizingProof(
+                {
+                  environment: CTRADER.environment,
+                  accountId: ACCOUNT_ID,
+                  symbolId: SYMBOL_ID,
+                  direction,
+                  volume: selected.volume,
+                  entry,
+                  sl,
+                  actualMarginGBP: selected.marginGBP,
+                  effectiveLeverage: brokerEffectiveLeverage,
+                  issuedAt: proofIssuedAt,
+                },
+                executorKey
+              ),
+            }
+          : null;
 
         log.push("EXPECTED_MARGIN_RECEIVED");
-        log.push(exact ? "EXACT_MARGIN_FOUND" : "EXACT_MARGIN_UNAVAILABLE");
+        log.push(selected ? "SAFE_MARGIN_SELECTED" : "SAFE_MARGIN_UNAVAILABLE");
 
         finish({
-          ok: Boolean(exact),
-          stage: exact ? "EXACT_MARGIN_FOUND" : "EXACT_MARGIN_UNAVAILABLE",
+          ok: Boolean(selected),
+          stage: selected ? "SAFE_MARGIN_SELECTED" : "SAFE_MARGIN_UNAVAILABLE",
           environment: CTRADER.environment,
           accountId: ACCOUNT_ID,
           symbol: SYMBOL_NAME,
@@ -919,12 +977,13 @@ if (tradeReady !== true) {
           direction,
           targetMarginGBP: CTRADER.targetMarginGBP,
           toleranceGBP: CTRADER.marginToleranceGBP,
-          exact,
-          closest,
+          selected,
+          brokerEffectiveLeverage,
+          sizingProof,
           checkedVolumes: estimates.length,
           orderWouldBeSent: false,
           payload2106Sent: false,
-        }, exact ? 200 : 409);
+        }, selected ? 200 : 409);
         return;
       }
 

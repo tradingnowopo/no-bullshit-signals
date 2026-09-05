@@ -1,14 +1,15 @@
 import WebSocket from "ws";
+import { getCTraderConfig } from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
-
-const ACCOUNT_ID = 48342468;
-const SYMBOL_ID = 250;
-const SYMBOL_NAME = "SpotCrude";
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
+const ACCOUNT_ID = CTRADER.accountId;
+const SYMBOL_ID = CTRADER.symbolId;
+const SYMBOL_NAME = CTRADER.symbolName;
 
 export async function GET() {
   const clientId = process.env.CTRADER_CLIENT_ID;
@@ -208,10 +209,7 @@ export async function GET() {
               protected:
                 p.stopLoss !== undefined &&
                 p.stopLoss !== null &&
-                Number(p.stopLoss) > 0 &&
-                p.takeProfit !== undefined &&
-                p.takeProfit !== null &&
-                Number(p.takeProfit) > 0,
+                Number(p.stopLoss) > 0,
 
               positionStatus:
                 p.positionStatus ??
@@ -237,7 +235,7 @@ export async function GET() {
         finish({
           ok: true,
           stage: "POSITIONS_OK",
-          environment: "DEMO",
+          environment: CTRADER.environment,
           accountId: ACCOUNT_ID,
           symbol: SYMBOL_NAME,
           symbolId: SYMBOL_ID,

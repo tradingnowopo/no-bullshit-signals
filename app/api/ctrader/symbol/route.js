@@ -1,18 +1,21 @@
 import WebSocket from "ws";
+import { getCTraderConfig } from "../../../lib/ctrader-config.js";
+import { createSizingProof } from "../../../lib/ctrader-sizing-proof.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
 
 const MAX_CONNECT_ATTEMPTS = 1;
 const RETRY_DELAY_MS = 0;
 const ATTEMPT_TIMEOUT_MS = 30000;
 const CTRADER_OPEN_DELAY_MS = 2000;
 
-const ACCOUNT_ID = 48342468;
-const SPOTCRUDE_SYMBOL_ID = 250;
+const ACCOUNT_ID = CTRADER.accountId;
+const SPOTCRUDE_SYMBOL_ID = CTRADER.symbolId;
 
 const DEFAULT_RISK_PERCENT = 1.0;
 const DEFAULT_HARD_CAP_GBP = 10.0;
@@ -33,6 +36,11 @@ function runCTraderAttempt({
   sl,
   riskPercent,
   hardCapGBP,
+  sizingMode,
+  direction,
+  targetMarginGBP,
+  marginToleranceGBP,
+  maxEffectiveLeverage,
   sizingRequested,
   attemptNumber,
 }) {
@@ -67,6 +75,10 @@ function runCTraderAttempt({
     let conversionBid = null;
     let conversionAsk = null;
     let conversionTimestamp = null;
+
+    let expectedMarginRequested = false;
+    let expectedMarginRows = null;
+    let expectedMarginCandidates = [];
 
 
     // ==================================================
@@ -293,6 +305,232 @@ function runCTraderAttempt({
         return;
       }
 
+      // ==================================================
+      // FIXED GBP MARGIN MODE
+      // Ask cTrader for the broker's own expected margin.
+      // Never infer margin from risk or advertised leverage.
+      // ==================================================
+
+      if (sizingMode === "MARGIN") {
+        const marginMoneyDigits = Number(traderData.moneyDigits ?? 2);
+        const marginAccountBalanceGBP =
+          Number(traderData.balance) / Math.pow(10, marginMoneyDigits);
+        const marginGbpUsdBid = conversionBid;
+        const marginGbpUsdAsk = conversionAsk;
+        const marginGbpUsdMid =
+          (marginGbpUsdBid + marginGbpUsdAsk) / 2;
+        const marginMinVolume = Number(spotCrudeSymbol.minVolume);
+        const marginMaxVolume = Number(spotCrudeSymbol.maxVolume);
+        const marginStepVolume = Number(spotCrudeSymbol.stepVolume);
+        const marginLotSize = Number(spotCrudeSymbol.lotSize);
+
+        if (
+          !Number.isFinite(marginMinVolume) ||
+          !Number.isFinite(marginMaxVolume) ||
+          !Number.isFinite(marginStepVolume) ||
+          !Number.isFinite(marginLotSize) ||
+          marginMinVolume <= 0 ||
+          marginMaxVolume <= 0 ||
+          marginStepVolume <= 0 ||
+          marginLotSize <= 0
+        ) {
+          finish({
+            ok: false,
+            retryable: false,
+            stage: "INVALID_SYMBOL_SPEC",
+            error: "Invalid SpotCrude volume specification",
+          });
+          return;
+        }
+
+        if (String(depositAsset.name).toUpperCase() !== "GBP") {
+          finish({
+            ok: false,
+            retryable: false,
+            stage: "MARGIN_ACCOUNT_CURRENCY_BLOCK",
+            error: "Fixed £10 margin requires a GBP cTrader account",
+          });
+          return;
+        }
+
+        const maxExposureGBP =
+          targetMarginGBP * maxEffectiveLeverage;
+
+        const maxBarrelsByExposure =
+          (maxExposureGBP * marginGbpUsdBid) / entry;
+
+        const maxProtocolByExposure =
+          Math.floor(
+            (maxBarrelsByExposure * 100) /
+              marginStepVolume
+          ) * marginStepVolume;
+
+        const candidateMax = Math.min(
+          marginMaxVolume,
+          maxProtocolByExposure
+        );
+
+        if (candidateMax < marginMinVolume) {
+          finish({
+            ok: false,
+            retryable: false,
+            stage: "LEVERAGE_CAP_TOO_SMALL_FOR_MIN_VOLUME",
+            targetMarginGBP,
+            maxEffectiveLeverage,
+            minVolume: marginMinVolume,
+            maxProtocolByExposure,
+          });
+          return;
+        }
+
+        if (!expectedMarginRequested) {
+          expectedMarginCandidates = [];
+          for (
+            let candidate = marginMinVolume;
+            candidate <= candidateMax;
+            candidate += marginStepVolume
+          ) {
+            expectedMarginCandidates.push(candidate);
+          }
+
+          expectedMarginRequested = true;
+          send(
+            2139,
+            {
+              ctidTraderAccountId: ACCOUNT_ID,
+              symbolId: SPOTCRUDE_SYMBOL_ID,
+              volume: expectedMarginCandidates,
+            },
+            `NBS_EXPECTED_MARGIN_${Date.now()}`
+          );
+          log.push("2139_EXPECTED_MARGIN_SEND_CALLED");
+          return;
+        }
+
+        if (!Array.isArray(expectedMarginRows)) {
+          return;
+        }
+
+        const moneyScale = Math.pow(10, marginMoneyDigits);
+        const normalizedDirection = String(direction).toUpperCase();
+
+        const evaluated = expectedMarginRows
+          .map((row) => {
+            const protocolVolume = Number(row?.volume);
+            const marginMinor = Number(
+              normalizedDirection === "SHORT"
+                ? row?.sellMargin
+                : row?.buyMargin
+            );
+            const actualMarginGBP = marginMinor / moneyScale;
+            const barrels = protocolVolume / 100;
+            const exposureGBP =
+              (barrels * entry) / marginGbpUsdBid;
+            const effectiveLeverage =
+              actualMarginGBP > 0
+                ? exposureGBP / actualMarginGBP
+                : Infinity;
+
+            return {
+              protocolVolume,
+              actualMarginGBP,
+              barrels,
+              exposureGBP,
+              effectiveLeverage,
+            };
+          })
+          .filter((row) =>
+            Number.isFinite(row.protocolVolume) &&
+            Number.isFinite(row.actualMarginGBP) &&
+            Number.isFinite(row.effectiveLeverage)
+          );
+
+        const eligible = evaluated
+          .filter((row) =>
+            Math.abs(row.actualMarginGBP - targetMarginGBP) <=
+              marginToleranceGBP &&
+            row.effectiveLeverage <= maxEffectiveLeverage
+          )
+          .sort((a, b) =>
+            Math.abs(a.actualMarginGBP - targetMarginGBP) -
+            Math.abs(b.actualMarginGBP - targetMarginGBP)
+          );
+
+        if (eligible.length === 0) {
+          const nearest = evaluated
+            .sort((a, b) =>
+              Math.abs(a.actualMarginGBP - targetMarginGBP) -
+              Math.abs(b.actualMarginGBP - targetMarginGBP)
+            )[0] ?? null;
+
+          finish({
+            ok: false,
+            retryable: false,
+            stage: "EXACT_MARGIN_UNAVAILABLE",
+            error:
+              "Broker volume steps cannot produce exactly £10 margin within tolerance",
+            targetMarginGBP,
+            marginToleranceGBP,
+            maxEffectiveLeverage,
+            nearest,
+          });
+          return;
+        }
+
+        const selected = eligible[0];
+        finish({
+          ok: true,
+          retryable: false,
+          stage: "POSITION_SIZE_READY",
+          environment: CTRADER.environment,
+          accountId: ACCOUNT_ID,
+          account: {
+            currency: depositAsset.name,
+            balance: Number(marginAccountBalanceGBP.toFixed(2)),
+          },
+          trade: {
+            direction: normalizedDirection,
+            entry,
+            sl,
+            stopDistance: Number(Math.abs(entry - sl).toFixed(4)),
+          },
+          margin: {
+            targetMarginGBP,
+            actualMarginGBP: Number(selected.actualMarginGBP.toFixed(2)),
+            marginToleranceGBP,
+            exposureGBP: Number(selected.exposureGBP.toFixed(2)),
+            effectiveLeverage: Number(selected.effectiveLeverage.toFixed(4)),
+            maxEffectiveLeverage,
+            source: "CTRADER_EXPECTED_MARGIN",
+          },
+          conversion: {
+            symbolId: conversionSymbol.symbolId,
+            symbolName: conversionSymbol.symbolName,
+            bid: Number(marginGbpUsdBid.toFixed(5)),
+            ask: Number(marginGbpUsdAsk.toFixed(5)),
+            mid: Number(marginGbpUsdMid.toFixed(5)),
+            quoteTimestamp: conversionTimestamp,
+          },
+          position: {
+            protocolVolume: selected.protocolVolume,
+            barrels: Number(selected.barrels.toFixed(2)),
+            lots: Number((selected.protocolVolume / marginLotSize).toFixed(4)),
+            minVolume: marginMinVolume,
+            maxVolume: marginMaxVolume,
+            stepVolume: marginStepVolume,
+            lotSize: marginLotSize,
+            actualMarginGBP: Number(selected.actualMarginGBP.toFixed(2)),
+            effectiveLeverage: Number(selected.effectiveLeverage.toFixed(4)),
+          },
+          broker: {
+            symbol: CTRADER.symbolName,
+            symbolId: SPOTCRUDE_SYMBOL_ID,
+            measurementUnits: spotCrudeSymbol.measurementUnits ?? null,
+          },
+        });
+        return;
+      }
+
 
       // ==================================================
       // ACCOUNT
@@ -386,7 +624,7 @@ function runCTraderAttempt({
 
           stage: "BROKER_DATA_READY",
 
-          environment: "DEMO",
+          environment: CTRADER.environment,
           accountId: ACCOUNT_ID,
 
           account: {
@@ -676,7 +914,7 @@ function runCTraderAttempt({
           "POSITION_SIZE_READY",
 
         environment:
-          "DEMO",
+          CTRADER.environment,
 
         accountId:
           ACCOUNT_ID,
@@ -1376,6 +1614,18 @@ function runCTraderAttempt({
 
           return;
         }
+
+        // ==================================================
+        // 2140 BROKER EXPECTED MARGIN
+        // ==================================================
+
+        if (msg.payloadType === 2140) {
+          const margins = msg.payload?.margin ?? [];
+          expectedMarginRows = Array.isArray(margins) ? margins : [];
+          log.push("2140_EXPECTED_MARGIN_LOADED");
+          finishIfReady();
+          return;
+        }
       }
     );
 
@@ -1486,6 +1736,21 @@ export async function GET(request) {
   const url =
     new URL(request.url);
 
+  const requestedEnvironment = String(
+    url.searchParams.get("environment") || CTRADER.environment
+  ).trim().toUpperCase();
+
+  if (requestedEnvironment !== CTRADER.environment) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "ENVIRONMENT_MISMATCH",
+        error: `Endpoint is configured for ${CTRADER.environment}`,
+      },
+      { status: 400 }
+    );
+  }
+
 
   const entry =
     Number(
@@ -1536,6 +1801,28 @@ export async function GET(request) {
       ? hardCapGBPRaw
       : DEFAULT_HARD_CAP_GBP;
 
+  const sizingMode = String(
+    url.searchParams.get("sizingMode") || "RISK"
+  ).trim().toUpperCase();
+
+  const direction = String(
+    url.searchParams.get("direction") || ""
+  ).trim().toUpperCase();
+
+  if (!["RISK", "MARGIN"].includes(sizingMode)) {
+    return Response.json(
+      { ok: false, stage: "VALIDATION", error: "sizingMode must be RISK or MARGIN" },
+      { status: 400 }
+    );
+  }
+
+  if (sizingMode === "MARGIN" && !["LONG", "SHORT"].includes(direction)) {
+    return Response.json(
+      { ok: false, stage: "VALIDATION", error: "direction is required for MARGIN sizing" },
+      { status: 400 }
+    );
+  }
+
 
   const sizingRequested =
     Number.isFinite(entry) &&
@@ -1577,6 +1864,12 @@ export async function GET(request) {
         riskPercent,
         hardCapGBP,
 
+        sizingMode,
+        direction,
+        targetMarginGBP: CTRADER.targetMarginGBP,
+        marginToleranceGBP: CTRADER.marginToleranceGBP,
+        maxEffectiveLeverage: CTRADER.maxEffectiveLeverage,
+
         sizingRequested,
 
         attemptNumber:
@@ -1612,10 +1905,33 @@ export async function GET(request) {
         ...cleanResult
       } = result;
 
+      let sizingProof = null;
+      if (cleanResult.stage === "POSITION_SIZE_READY" && sizingMode === "MARGIN") {
+        const issuedAt = Date.now();
+        const proofPayload = {
+          environment: cleanResult.environment,
+          accountId: cleanResult.accountId,
+          symbolId: cleanResult.broker?.symbolId,
+          direction,
+          volume: cleanResult.position?.protocolVolume,
+          entry,
+          sl,
+          actualMarginGBP: cleanResult.margin?.actualMarginGBP,
+          effectiveLeverage: cleanResult.margin?.effectiveLeverage,
+          issuedAt,
+        };
+        sizingProof = {
+          issuedAt,
+          signature: createSizingProof(proofPayload, executorKey),
+        };
+      }
+
 
       return Response.json(
         {
           ...cleanResult,
+
+          sizingProof,
 
           connectionAttempts:
             attempt,

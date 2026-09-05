@@ -1,13 +1,17 @@
 import WebSocket from "ws";
+import {
+  getCTraderConfig,
+  validateRequestedEnvironment,
+} from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
-
-const ACCOUNT_ID = 48342468;
-const SYMBOL_ID = 250;
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
+const ACCOUNT_ID = CTRADER.accountId;
+const SYMBOL_ID = CTRADER.symbolId;
 
 export async function POST(request) {
     const executorKey = process.env.NBS_EXECUTOR_KEY;
@@ -53,12 +57,12 @@ export async function POST(request) {
     );
   }
 
-  if (body?.environment !== "DEMO") {
+  if (!validateRequestedEnvironment(body?.environment, CTRADER.environment)) {
     return Response.json(
       {
         ok: false,
         stage: "VALIDATION",
-        error: "Only DEMO environment is allowed",
+        error: `Requested environment must match configured ${CTRADER.environment} environment`,
       },
       { status: 400 }
     );
@@ -67,6 +71,24 @@ export async function POST(request) {
   const positionId = Number(body?.positionId);
   const volume = Number(body?.volume ?? 100);
   const validateOnly = body?.validateOnly === true;
+  const dryRun = body?.dryRun === true;
+
+  if (
+    CTRADER.live &&
+    !validateOnly &&
+    !dryRun &&
+    (!CTRADER.liveTradingEnabled || body?.liveConfirm !== true)
+  ) {
+    return Response.json(
+      {
+        ok: false,
+        stage: "LIVE_KILL_SWITCH",
+        error: "LIVE close blocked by kill switch",
+        closeWouldBeSent: false,
+      },
+      { status: 409 }
+    );
+  }
 
   if (!Number.isInteger(positionId) || positionId <= 0) {
     return Response.json(
@@ -90,12 +112,13 @@ export async function POST(request) {
     );
   }
 
-  if (validateOnly) {
+  if (validateOnly || dryRun) {
     return Response.json({
       ok: true,
       stage: "VALIDATION_OK",
       validateOnly: true,
-      environment: "DEMO",
+      environment: CTRADER.environment,
+      dryRun,
       accountId: ACCOUNT_ID,
       symbolId: SYMBOL_ID,
       positionId,
@@ -233,7 +256,7 @@ export async function POST(request) {
           finish({
             ok: true,
             stage: "POSITION_CLOSED",
-            environment: "DEMO",
+            environment: CTRADER.environment,
             accountId: ACCOUNT_ID,
             positionId,
             requestedVolume: volume,

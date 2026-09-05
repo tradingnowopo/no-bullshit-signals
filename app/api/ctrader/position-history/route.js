@@ -1,14 +1,15 @@
 import WebSocket from "ws";
+import { getCTraderConfig } from "../../../lib/ctrader-config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const WS_URL = "wss://demo.ctraderapi.com:5036";
-
-const ACCOUNT_ID = 48342468;
-const SYMBOL_ID = 250;
-const SYMBOL_NAME = "SpotCrude";
+const CTRADER = getCTraderConfig();
+const WS_URL = CTRADER.wsUrl;
+const ACCOUNT_ID = CTRADER.accountId;
+const SYMBOL_ID = CTRADER.symbolId;
+const SYMBOL_NAME = CTRADER.symbolName;
 
 export async function GET(request) {
   const clientId = process.env.CTRADER_CLIENT_ID;
@@ -260,7 +261,7 @@ export async function GET(request) {
               "POSITION_HISTORY_NOT_FOUND",
 
             environment:
-              "DEMO",
+              CTRADER.environment,
 
             accountId:
               ACCOUNT_ID,
@@ -383,7 +384,7 @@ export async function GET(request) {
               : "POSITION_DEALS_FOUND",
 
           environment:
-            "DEMO",
+            CTRADER.environment,
 
           accountId:
             ACCOUNT_ID,

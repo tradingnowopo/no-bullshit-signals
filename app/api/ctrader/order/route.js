@@ -665,6 +665,7 @@ if (tradeReady !== true) {
     // touching execution state. This is safe because 2106 has not been sent.
     let appAuthAttempts = 0;
     let brokerEffectiveLeverage = null;
+    let symbolLeverageTiers = [];
     const MAX_APP_AUTH_ATTEMPTS = 3;
     const APP_AUTH_RETRY_DELAY_MS = 2000;
     let appAuthRetryTimer = null;
@@ -852,13 +853,14 @@ if (tradeReady !== true) {
 
         if (sizingOnly) {
           send(
-            2121,
+            2116,
             {
               ctidTraderAccountId: ACCOUNT_ID,
+              symbolId: [SYMBOL_ID],
             },
-            `NBS_TRADER_${Date.now()}`
+            `NBS_SYMBOL_${Date.now()}`
           );
-          log.push("2121_TRADER_SEND_CALLED");
+          log.push("2116_SYMBOL_SEND_CALLED");
           return;
         }
 
@@ -874,29 +876,53 @@ if (tradeReady !== true) {
         return;
       }
 
-      if (msg.payloadType === 2122 && sizingOnly) {
-        brokerEffectiveLeverage = Number(msg.payload?.trader?.leverageInCents) / 100;
+      if (msg.payloadType === 2117 && sizingOnly) {
+        const brokerSymbol = (msg.payload?.symbol || []).find(
+          (item) => Number(item?.symbolId) === SYMBOL_ID
+        );
+        const leverageId = Number(brokerSymbol?.leverageId);
 
-        if (
-          !Number.isFinite(brokerEffectiveLeverage) ||
-          brokerEffectiveLeverage <= 0 ||
-          brokerEffectiveLeverage > CTRADER.maxEffectiveLeverage + CTRADER.leverageTolerance
-        ) {
-          log.push("LEVERAGE_CAP_BLOCK");
+        if (!Number.isFinite(leverageId) || leverageId <= 0) {
+          log.push("SYMBOL_LEVERAGE_UNAVAILABLE");
           finish({
             ok: false,
-            stage: "LEVERAGE_CAP_BLOCK",
-            brokerEffectiveLeverage: Number.isFinite(brokerEffectiveLeverage)
-              ? brokerEffectiveLeverage
-              : null,
-            maxEffectiveLeverage: CTRADER.maxEffectiveLeverage,
+            stage: "SYMBOL_LEVERAGE_UNAVAILABLE",
             orderWouldBeSent: false,
             payload2106Sent: false,
           }, 409);
           return;
         }
 
-        log.push("BROKER_LEVERAGE_VERIFIED");
+        log.push("SYMBOL_LEVERAGE_ID_RECEIVED");
+        send(
+          2177,
+          {
+            ctidTraderAccountId: ACCOUNT_ID,
+            leverageId,
+          },
+          `NBS_DYNAMIC_LEVERAGE_${Date.now()}`
+        );
+        log.push("2177_DYNAMIC_LEVERAGE_SEND_CALLED");
+        return;
+      }
+
+      if (msg.payloadType === 2178 && sizingOnly) {
+        symbolLeverageTiers = Array.isArray(msg.payload?.leverage?.tiers)
+          ? msg.payload.leverage.tiers
+          : [];
+
+        if (symbolLeverageTiers.length === 0) {
+          log.push("SYMBOL_LEVERAGE_TIERS_EMPTY");
+          finish({
+            ok: false,
+            stage: "SYMBOL_LEVERAGE_UNAVAILABLE",
+            orderWouldBeSent: false,
+            payload2106Sent: false,
+          }, 409);
+          return;
+        }
+
+        log.push("SYMBOL_LEVERAGE_TIERS_RECEIVED");
         send(
           2139,
           {
@@ -942,8 +968,25 @@ if (tradeReady !== true) {
           }))
           .sort((a, b) => a.differenceGBP - b.differenceGBP);
         const selected = ranked[0] || null;
+        if (selected) {
+          const notionalUsdCents = entry * (selected.volume / 100) * 100;
+          const tier = symbolLeverageTiers.find(
+            (item) => Number(item?.volume) >= notionalUsdCents
+          ) || symbolLeverageTiers[symbolLeverageTiers.length - 1];
+          const rawLeverage = Number(tier?.leverage);
+          brokerEffectiveLeverage = rawLeverage > 100
+            ? rawLeverage / 100
+            : rawLeverage;
+        }
+
+        const leverageAllowed =
+          Number.isFinite(brokerEffectiveLeverage) &&
+          brokerEffectiveLeverage > 0 &&
+          brokerEffectiveLeverage <=
+            CTRADER.maxEffectiveLeverage + CTRADER.leverageTolerance;
+        const safeSelection = selected && leverageAllowed ? selected : null;
         const proofIssuedAt = Date.now();
-        const sizingProof = selected
+        const sizingProof = safeSelection
           ? {
               issuedAt: proofIssuedAt,
               signature: createSizingProof(
@@ -952,10 +995,10 @@ if (tradeReady !== true) {
                   accountId: ACCOUNT_ID,
                   symbolId: SYMBOL_ID,
                   direction,
-                  volume: selected.volume,
+                  volume: safeSelection.volume,
                   entry,
                   sl,
-                  actualMarginGBP: selected.marginGBP,
+                  actualMarginGBP: safeSelection.marginGBP,
                   effectiveLeverage: brokerEffectiveLeverage,
                   issuedAt: proofIssuedAt,
                 },
@@ -965,11 +1008,21 @@ if (tradeReady !== true) {
           : null;
 
         log.push("EXPECTED_MARGIN_RECEIVED");
-        log.push(selected ? "SAFE_MARGIN_SELECTED" : "SAFE_MARGIN_UNAVAILABLE");
+        log.push(
+          !selected
+            ? "SAFE_MARGIN_UNAVAILABLE"
+            : leverageAllowed
+              ? "SAFE_MARGIN_SELECTED"
+              : "SYMBOL_LEVERAGE_CAP_BLOCK"
+        );
 
         finish({
-          ok: Boolean(selected),
-          stage: selected ? "SAFE_MARGIN_SELECTED" : "SAFE_MARGIN_UNAVAILABLE",
+          ok: Boolean(safeSelection),
+          stage: !selected
+            ? "SAFE_MARGIN_UNAVAILABLE"
+            : leverageAllowed
+              ? "SAFE_MARGIN_SELECTED"
+              : "SYMBOL_LEVERAGE_CAP_BLOCK",
           environment: CTRADER.environment,
           accountId: ACCOUNT_ID,
           symbol: SYMBOL_NAME,
@@ -977,13 +1030,13 @@ if (tradeReady !== true) {
           direction,
           targetMarginGBP: CTRADER.targetMarginGBP,
           toleranceGBP: CTRADER.marginToleranceGBP,
-          selected,
+          selected: safeSelection,
           brokerEffectiveLeverage,
           sizingProof,
           checkedVolumes: estimates.length,
           orderWouldBeSent: false,
           payload2106Sent: false,
-        }, selected ? 200 : 409);
+        }, safeSelection ? 200 : 409);
         return;
       }
 

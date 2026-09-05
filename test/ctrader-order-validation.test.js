@@ -73,10 +73,10 @@ test("WTI validation blocks volume changed after sizing", async () => {
   assert.equal((await result.json()).stage, "SIZING_PROOF_BLOCK");
 });
 
-test("WTI validation blocks sizing below exactly 10x leverage", async () => {
+test("WTI validation rejects an unsigned leverage change", async () => {
   const body = payload();
   body.effectiveLeverage = 5;
   const result = await callOrder(body);
   assert.equal(result.status, 409);
-  assert.equal((await result.json()).stage, "LEVERAGE_ATTESTATION_BLOCK");
+  assert.equal((await result.json()).stage, "SIZING_PROOF_BLOCK");
 });
